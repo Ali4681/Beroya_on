@@ -1,0 +1,18 @@
+node_modules
+.next
+out
+dist
+build
+coverage
+logs
+.DS_Store
+*.pem
+.env*
+.vercel
+*.tsbuildinfo
+next-env.d.ts
+# Separate git repo — pushed from Beroya-On-Backend/
+Beroya-On-Backend/
+# Separate git repo — pushed from frontend/
+frontend/
+_flat_clone/
