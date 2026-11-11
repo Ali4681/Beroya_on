@@ -1,0 +1,2465 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =====================================================================
+// PHASE 0 — Platform Foundation
+// =====================================================================
+
+/// Fixed roles. No dynamic permissions system (Ticket §1.1, §1.2).
+enum GoRole {
+  CUSTOMER
+  DRIVER
+  CUSTOMER_SERVICE
+  CUSTOMER_SERVICE_SUPERVISOR
+  OPERATIONS
+  WALLET_OPERATOR
+  FINANCE
+  ADMIN
+  SUPER_ADMIN
+  /// Authorised store (POS) cashier. Not staff: only sees its own store through `users.store_id`.
+  STORE_OPERATOR
+}
+
+enum GoDevicePlatform {
+  ANDROID
+  IOS
+  WEB
+}
+
+enum GoOtpPurpose {
+  CUSTOMER_LOGIN
+  DRIVER_LOGIN
+  DRIVER_PHONE_CHANGE
+}
+
+enum GoIdempotencyStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+/// Operational branch (Ticket §1.3, §1.4).
+model GoBranch {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  name_ar      String
+  name_en      String?
+  is_active    Boolean  @default(true)
+  /// GeoJSON Polygon/MultiPolygon for pickup → branch ownership. Null = not configured yet.
+  service_area Json?
+  /// City centre for the distance bonus. Null = centroid of service_area.
+  center_lat   Decimal? @db.Decimal(10, 7)
+  center_lng   Decimal? @db.Decimal(10, 7)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  users          User[]
+  drivers               GoDriverProfile[]
+  vehicles              GoVehicle[]
+  rides                 GoRide[]
+  alerts                GoOperationalAlert[]
+  complaints            GoComplaint[]
+  emergencies           GoEmergencySession[]
+  cases                 GoRideCase[]
+  discount_codes        GoCustomerDiscountCode[]
+  goal_campaigns        GoGoalCampaign[]
+  stores                GoStore[]
+  phone_change_requests GoDriverPhoneChangeRequest[]
+  employees             GoEmployee[]
+
+  @@map("go_branches")
+}
+
+/// Single central user table. Customer/Driver Go profiles link to it (Ticket §1.2).
+/// A phone may hold one account per role (e.g. the same person as CUSTOMER and DRIVER).
+model User {
+  id            String    @id @default(uuid())
+  role          GoRole
+  phone         String?
+  email         String?   @unique
+  password_hash String?
+  full_name     String?
+  /// Staff desk avatar under storage/staff-avatars. Null when no photo was uploaded.
+  avatar_key    String?
+  branch_id     String?
+  branch        GoBranch? @relation(fields: [branch_id], references: [id])
+  is_active     Boolean   @default(true)
+  /// Soft-delete timestamp (Ticket §27). Phone is cleared so the number can re-register.
+  deleted_at    DateTime?
+  last_login_at DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  sessions                   GoUserSession[]
+  customerProfile            GoCustomerProfile?
+  driverProfile              GoDriverProfile?
+  claimedAlerts              GoOperationalAlert[]
+  assignedComplaints         GoComplaint[]                 @relation("ComplaintAssignee")
+  resolvedComplaints         GoComplaint[]                 @relation("ComplaintResolver")
+  claimedSupportMessages     GoSupportMessage[]            @relation("SupportMessageClaimedBy")
+  handledEmergencies         GoEmergencySession[]          @relation("EmergencyHandler")
+  savedEmergencies           GoEmergencySession[]          @relation("EmergencySaver")
+  deletedEmergencies         GoEmergencySession[]          @relation("EmergencyDeleter")
+  closedCases                GoRideCase[]                  @relation("CaseCloser")
+  authoredCaseNotes          GoRideCaseNote[]
+  reviewedEntitlements       GoDriverEntitlement[]         @relation("EntitlementReviewer")
+  walletTransactions         GoDriverWalletTransaction[]
+  customerWalletTransactions GoCustomerWalletTransaction[] @relation("CustomerWalletActor")
+  walletVouchersCreated      GoWalletVoucher[]             @relation("WalletVoucherCreator")
+  compensationsCreated       GoRideCompensation[]          @relation("CompensationCreator")
+  compensationsReviewed      GoRideCompensation[]          @relation("CompensationFinanceReviewer")
+  discountCodesCreated       GoCustomerDiscountCode[]
+  passportRewardApprovals    GoPassportRewardGrant[]       @relation("RewardGrantApprover")
+  ratingsGiven               GoRideRating[]                @relation("RatingFromUser")
+  ratingsReceived            GoRideRating[]                @relation("RatingToUser")
+  pushTokens                 GoPushToken[]
+  customerNotifications      GoCustomerNotification[]
+  driverNotifications        GoDriverNotification[]
+  notificationBroadcasts     GoNotificationBroadcast[]
+  rideMessagesSent           GoRideMessage[]
+  fuelPriceChanges           GoFuelPriceChange[]
+  /// Set only for STORE_OPERATOR accounts. The POS API resolves the store from here, never from the request.
+  store_id                   String?
+  store                      GoStore?                      @relation("StoreOperators", fields: [store_id], references: [id])
+  storesCreated              GoStore[]                     @relation("StoreCreator")
+  storeLedgerEntries         GoStoreLedgerEntry[]          @relation("StoreLedgerActor")
+  phoneChangeRequests        GoDriverPhoneChangeRequest[]  @relation("PhoneChangeRequestDriverUser")
+  phoneChangeReviews         GoDriverPhoneChangeRequest[]  @relation("PhoneChangeRequestReviewer")
+  employeeProfile            GoEmployee?
+
+  @@unique([phone, role])
+  @@index([role])
+  @@index([branch_id])
+  @@index([deleted_at])
+  @@index([store_id])
+  @@map("users")
+}
+
+model GoUserSession {
+  id                 String            @id @default(uuid())
+  user_id            String
+  user               User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  refresh_token_hash String
+  device_id          String?
+  device_name        String?
+  platform           GoDevicePlatform?
+  ip                 String?
+  user_agent         String?
+  expires_at         DateTime
+  revoked_at         DateTime?
+  last_used_at       DateTime          @default(now())
+  created_at         DateTime          @default(now())
+
+  @@index([user_id])
+  @@map("go_user_sessions")
+}
+
+/// Device push token for FCM (Ticket §38).
+model GoPushToken {
+  id         String           @id @default(uuid())
+  user_id    String
+  user       User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  token      String           @unique
+  platform   GoDevicePlatform
+  created_at DateTime         @default(now())
+  updated_at DateTime         @updatedAt
+
+  @@index([user_id])
+  @@map("go_push_tokens")
+}
+
+enum GoPushDeliveryStatus {
+  QUEUED
+  SENT
+  SKIPPED
+  FAILED
+}
+
+model GoPushDelivery {
+  id         String               @id @default(uuid())
+  user_id    String
+  event      String
+  title      String
+  body       String
+  payload    Json?
+  status     GoPushDeliveryStatus @default(QUEUED)
+  error      String?
+  created_at DateTime             @default(now())
+
+  @@index([user_id, created_at])
+  @@map("go_push_deliveries")
+}
+
+/// In-app customer notification inbox (Ticket §18 — badge + notifications screen).
+model GoCustomerNotification {
+  id         String    @id @default(uuid())
+  user_id    String
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  event      String
+  title      String    @db.VarChar(120)
+  body       String    @db.VarChar(500)
+  payload    Json?
+  read_at    DateTime?
+  created_at DateTime  @default(now())
+
+  @@index([user_id, created_at])
+  @@index([user_id, read_at])
+  @@map("go_customer_notifications")
+}
+
+/// In-app driver notification inbox (driver home «الإشعارات»).
+model GoDriverNotification {
+  id         String    @id @default(uuid())
+  user_id    String
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  event      String
+  title      String    @db.VarChar(120)
+  body       String    @db.VarChar(500)
+  payload    Json?
+  read_at    DateTime?
+  created_at DateTime  @default(now())
+
+  @@index([user_id, created_at])
+  @@index([user_id, read_at])
+  @@map("go_driver_notifications")
+}
+
+enum GoNotificationBroadcastStatus {
+  SCHEDULED
+  SENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+/// Admin broadcast log (immediate or scheduled).
+model GoNotificationBroadcast {
+  id             String                        @id @default(uuid())
+  audience       String                        @db.VarChar(20)
+  /// Optional segment within the audience (birthday, top orders, top rating, …).
+  filter         String?                       @db.VarChar(40)
+  /// Cap for ranked filters (top/bottom N). Null for birthday / full audience.
+  audience_limit Int?
+  title          String                        @db.VarChar(80)
+  body           String                        @db.VarChar(280)
+  status         GoNotificationBroadcastStatus @default(SCHEDULED)
+  scheduled_at   DateTime?
+  sent_at        DateTime?
+  created_by_id  String
+  created_by     User                          @relation(fields: [created_by_id], references: [id])
+  devices_queued Int?
+  inbox_count    Int?
+  job_id         String?
+  error          String?
+  created_at     DateTime                      @default(now())
+  updated_at     DateTime                      @updatedAt
+
+  @@index([created_at])
+  @@index([status, scheduled_at])
+  @@index([created_by_id, created_at])
+  @@map("go_notification_broadcasts")
+}
+
+/// Editable default copy for birthday (and similar) admin broadcasts. Single row `default`.
+model GoNotificationConfig {
+  id                      String   @id @default("default")
+  customer_birthday_title String   @default("عيد ميلاد سعيد") @db.VarChar(80)
+  customer_birthday_body  String   @default("كل عام وأنت بخير يا {name}! نتمنى لك يوماً سعيداً مع بيرويا.") @db.VarChar(280)
+  driver_birthday_title   String   @default("عيد ميلاد سعيد") @db.VarChar(80)
+  driver_birthday_body    String   @default("كل عام وأنت بخير يا {name}! شكراً لكونك جزءاً من عائلة بيرويا.") @db.VarChar(280)
+  updated_at              DateTime @updatedAt
+
+  @@map("go_notification_config")
+}
+
+model GoOtpRequest {
+  id          String       @id @default(uuid())
+  phone       String
+  purpose     GoOtpPurpose
+  code_hash   String
+  attempts    Int          @default(0)
+  expires_at  DateTime
+  consumed_at DateTime?
+  created_at  DateTime     @default(now())
+
+  @@index([phone, purpose, created_at])
+  @@map("go_otp_requests")
+}
+
+/// Unified internal audit log (Ticket §30).
+model GoAuditLog {
+  id            String   @id @default(uuid())
+  actor_user_id String?
+  actor_role    GoRole?
+  branch_id     String?
+  action        String
+  entity_type   String
+  entity_id     String
+  metadata      Json?
+  created_at    DateTime @default(now())
+
+  @@index([entity_type, entity_id])
+  @@index([actor_user_id, created_at])
+  @@index([action, created_at])
+  @@map("go_audit_logs")
+}
+
+/// Idempotency-Key storage for sensitive/financial endpoints (Ticket §42).
+model GoIdempotencyKey {
+  id              String              @id @default(uuid())
+  key             String
+  user_id         String
+  method          String
+  path            String
+  request_hash    String
+  status          GoIdempotencyStatus @default(IN_PROGRESS)
+  response_status Int?
+  response_body   Json?
+  created_at      DateTime            @default(now())
+  expires_at      DateTime
+
+  @@unique([user_id, key])
+  @@index([expires_at])
+  @@map("go_idempotency_keys")
+}
+
+// =====================================================================
+// PHASE 1 — Core Master Data
+// =====================================================================
+
+enum GoRideRequirementType {
+  FEMALE_DRIVER
+  CHILD_SEAT
+  EXTRA_LUGGAGE
+  ACCESSIBILITY
+  /// Personal assistance during the trip (ACCESSIBILITY flows).
+  PERSONAL_ASSISTANCE
+  /// Wheelchair-accessible vehicle.
+  WHEELCHAIR
+}
+
+enum GoDriverGender {
+  MALE
+  FEMALE
+  UNSPECIFIED
+}
+
+/// EXTERNAL: owns their vehicle — created with vehicle + vehicle docs in the driver wizard.
+/// BEROYA: company driver — vehicle is created on Vehicles page and linked later.
+enum GoDriverKind {
+  EXTERNAL
+  BEROYA
+}
+
+enum GoLanguage {
+  AR
+  EN
+}
+
+enum GoDocumentType {
+  LICENSE
+  VEHICLE_REGISTRATION
+  INSURANCE
+  IDENTITY
+}
+
+model GoRideCategory {
+  id                   String                       @id @default(uuid())
+  code                 String                       @unique
+  name_ar              String
+  name_en              String?
+  is_active            Boolean                      @default(true)
+  sort_order           Int                          @default(0)
+  max_passengers       Int                          @default(4)
+  /// Relative file under storage/ride-category-images. Null when no image was uploaded.
+  image_key            String?
+  pricing              GoRidePricing?
+  vehicles             GoVehicle[]
+  vehicle_categories   GoVehicleRideCategory[]
+  rides                GoRide[]
+  passport_score_rules GoPassportScoreRule[]
+  discount_categories  GoCustomerDiscountCategory[]
+  created_at           DateTime                     @default(now())
+  updated_at           DateTime                     @updatedAt
+
+  @@map("go_ride_categories")
+}
+
+model GoRidePricing {
+  id               String         @id @default(uuid())
+  ride_category_id String         @unique
+  ride_category    GoRideCategory @relation(fields: [ride_category_id], references: [id])
+  base_fare        Decimal        @db.Decimal(18, 2)
+  price_per_km     Decimal        @db.Decimal(18, 2)
+  price_per_minute Decimal        @db.Decimal(18, 2)
+  minimum_fare     Decimal        @db.Decimal(18, 2)
+  currency         String         @default("SYP")
+  is_active        Boolean        @default(true)
+  /// AUTO follows fuel price changes; MANUAL keeps price_per_km fixed. Both can be edited by hand.
+  per_km_mode      GoPerKmMode    @default(AUTO)
+  created_at       DateTime       @default(now())
+  updated_at       DateTime       @updatedAt
+
+  @@map("go_ride_pricing")
+}
+
+enum GoPerKmMode {
+  AUTO
+  MANUAL
+}
+
+/// Fuel price that drives AUTO per-km prices (single row "default").
+model GoFuelPricing {
+  id             String   @id @default("default")
+  /// Null until the first fuel price is entered.
+  current_price  Decimal? @db.Decimal(18, 2)
+  /// Share of the per-km price caused by fuel, in percent. 100 = per-km moves by the same % as fuel.
+  fuel_share_pct Decimal  @default(100) @db.Decimal(5, 2)
+  /// New per-km prices are rounded to the nearest multiple of this. 0 = no rounding.
+  rounding_step  Decimal  @default(50) @db.Decimal(18, 2)
+  updated_at     DateTime @updatedAt
+
+  @@map("go_fuel_pricing")
+}
+
+/// History of fuel price changes and the per-km prices they moved.
+model GoFuelPriceChange {
+  id             String   @id @default(uuid())
+  old_price      Decimal? @db.Decimal(18, 2)
+  new_price      Decimal  @db.Decimal(18, 2)
+  fuel_share_pct Decimal  @db.Decimal(5, 2)
+  rounding_step  Decimal  @db.Decimal(18, 2)
+  changed_by_id  String?
+  changed_by     User?    @relation(fields: [changed_by_id], references: [id], onDelete: SetNull)
+  /// [{ ride_category_id, code, name_ar, old_per_km, new_per_km }]
+  affected       Json
+  created_at     DateTime @default(now())
+
+  @@index([created_at])
+  @@map("go_fuel_price_changes")
+}
+
+/// Ride package shown on the customer home. Offers ride_count rides and/or discount_percentage off for duration_days.
+model GoPackage {
+  id                  String   @id @default(uuid())
+  name_ar             String   @db.VarChar(80)
+  name_en             String?  @db.VarChar(80)
+  description_ar      String?  @db.VarChar(500)
+  description_en      String?  @db.VarChar(500)
+  price               Decimal  @db.Decimal(18, 2)
+  currency            String   @default("SYP") @db.VarChar(3)
+  duration_days       Int
+  ride_count          Int?
+  discount_percentage Decimal? @db.Decimal(5, 2)
+  /// Relative file under storage/package-images. Null when no image was uploaded.
+  image_key           String?
+  is_active           Boolean  @default(true)
+  sort_order          Int      @default(0)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  @@index([is_active, sort_order])
+  @@map("go_packages")
+}
+
+/// Customer-selectable city (Ticket §21). Operational branches stay on GoBranch.
+model GoCity {
+  id         String              @id @default(uuid())
+  name_ar    String              @unique @db.VarChar(80)
+  name_en    String?             @db.VarChar(80)
+  /// Governorate / city centroid for INTERCITY map pin (optional until admin sets it).
+  lat        Float?
+  lng        Float?
+  sort_order Int                 @default(0)
+  is_active  Boolean             @default(true)
+  created_at DateTime            @default(now())
+  updated_at DateTime            @updatedAt
+  customers  GoCustomerProfile[]
+
+  @@index([is_active, sort_order])
+  @@map("go_cities")
+}
+
+/// Customer Go profile linked to central User (Ticket §1.2).
+model GoCustomerProfile {
+  id                   String                        @id @default(uuid())
+  user_id              String                        @unique
+  user                 User                          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  notes                String?
+  /// Contact email set by the customer. Kept off User.email, which is unique and used for staff login.
+  email                String?                       @db.VarChar(254)
+  /// Legacy free-text city; kept for transition. API `city` prefers selected_city.name_ar.
+  city                 String?                       @db.VarChar(80)
+  city_id              String?
+  selected_city        GoCity?                       @relation(fields: [city_id], references: [id], onDelete: SetNull)
+  gender               GoDriverGender                @default(UNSPECIFIED)
+  date_of_birth        DateTime?                     @db.Date
+  preferred_currency   String                        @default("SYP") @db.VarChar(3)
+  /// App / push / copy language preference (Ticket §25).
+  preferred_language   GoLanguage                    @default(AR)
+  /// Relative file under storage/customer-avatars. Null when no avatar was uploaded.
+  avatar_key           String?
+  rides                GoRide[]                      @relation("CustomerRides")
+  complaints           GoComplaint[]
+  support_messages     GoSupportMessage[]
+  emergencies          GoEmergencySession[]
+  cases                GoRideCase[]
+  passport             GoCustomerPassport?
+  score_ledger         GoPassportScoreLedger[]
+  discount_codes       GoCustomerDiscountCode[]
+  discount_memberships GoDiscountCodeCustomer[]
+  discount_redemptions GoDiscountCodeRedemption[]
+  reward_grants        GoPassportRewardGrant[]
+  passport_stamps      GoCustomerPassportStamp[]
+  saved_places         GoCustomerSavedPlace[]
+  wallet               GoCustomerWallet?
+  wallet_transactions  GoCustomerWalletTransaction[]
+  redeemed_vouchers    GoWalletVoucher[]
+  created_at           DateTime                      @default(now())
+  updated_at           DateTime                      @updatedAt
+
+  @@index([city_id])
+  @@index([date_of_birth])
+  @@map("go_customer_profiles")
+}
+
+enum GoSavedPlaceKind {
+  HOME
+  WORK
+  OTHER
+}
+
+/// Customer saved places (home / work / other). Synced across devices (Ticket §22).
+model GoCustomerSavedPlace {
+  id          String            @id @default(uuid())
+  customer_id String
+  customer    GoCustomerProfile @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  name        String            @db.VarChar(60)
+  /// Lowercased trimmed name for per-customer uniqueness.
+  name_key    String            @db.VarChar(60)
+  kind        GoSavedPlaceKind  @default(OTHER)
+  lat         Decimal           @db.Decimal(10, 7)
+  lng         Decimal           @db.Decimal(10, 7)
+  address     String?           @db.VarChar(255)
+  created_at  DateTime          @default(now())
+  updated_at  DateTime          @updatedAt
+
+  @@unique([customer_id, name_key])
+  @@index([customer_id, updated_at])
+  @@map("go_customer_saved_places")
+}
+
+model GoDriverProfile {
+  id                    String                        @id @default(uuid())
+  user_id               String                        @unique
+  user                  User                          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  branch_id             String?
+  branch                GoBranch?                     @relation(fields: [branch_id], references: [id])
+  gender                GoDriverGender                @default(UNSPECIFIED)
+  /// EXTERNAL brings a vehicle in the create wizard; BEROYA gets a vehicle from /admin/vehicles.
+  kind                  GoDriverKind                  @default(EXTERNAL)
+  /// Optional birthday for admin birthday filters / dashboard (same shape as customer).
+  date_of_birth         DateTime?                     @db.Date
+  /// Primary / mother tongue as ISO 639-1 (e.g. ar, en, fr). Also included in `languages`.
+  mother_tongue         String                        @default("ar") @db.VarChar(16)
+  /// Spoken languages as ISO 639-1 codes (includes mother_tongue).
+  languages             String[]                      @default([])
+  /// App UI language (push / inbox copy). Distinct from spoken `languages`.
+  preferred_language    GoLanguage                    @default(AR)
+  is_suspended          Boolean                       @default(false)
+  support_messages      GoSupportMessage[]
+  suspended_reason      String?
+  operational_blocked   Boolean                       @default(false)
+  operational_reason    String?
+  /// Relative file under storage/driver-avatars. Null when no photo was uploaded.
+  avatar_key            String?
+  active_vehicle_id     String?                       @unique
+  active_vehicle        GoVehicle?                    @relation("DriverActiveVehicle", fields: [active_vehicle_id], references: [id])
+  vehicles              GoVehicle[]                   @relation("DriverOwnedVehicles")
+  documents             GoDriverDocument[]
+  vehicle_photos        GoDriverVehiclePhoto[]
+  state                 GoDriverState?
+  rides                 GoRide[]                      @relation("DriverRides")
+  offers                GoRideOffer[]
+  complaints            GoComplaint[]
+  cases                 GoRideCase[]
+  entitlements          GoDriverEntitlement[]
+  wallet                GoDriverWallet?
+  wallet_transactions   GoDriverWalletTransaction[]
+  commission_holds      GoWalletCommissionHold[]
+  passport              GoDriverPassport?
+  passport_score_ledger GoDriverPassportScoreLedger[]
+  incentive_grants      GoDriverIncentiveGrant[]
+  online_sessions       GoDriverOnlineSession[]
+  score_snapshots       GoDriverScoreSnapshot[]
+  store_ledger_entries  GoStoreLedgerEntry[]
+  phone_change_requests GoDriverPhoneChangeRequest[]
+  created_at            DateTime                      @default(now())
+  updated_at            DateTime                      @updatedAt
+
+  @@index([branch_id])
+  @@index([date_of_birth])
+  @@map("go_driver_profiles")
+}
+
+enum GoDriverPhoneChangeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  /// Applied immediately by desk staff (no OTP / no approval queue).
+  STAFF_APPLIED
+}
+
+/// OTP proves ownership of the new number; staff approve/reject before User.phone is updated.
+model GoDriverPhoneChangeRequest {
+  id              String                    @id @default(uuid())
+  driver_id       String
+  driver          GoDriverProfile           @relation(fields: [driver_id], references: [id], onDelete: Cascade)
+  user_id         String
+  user            User                      @relation("PhoneChangeRequestDriverUser", fields: [user_id], references: [id], onDelete: Cascade)
+  branch_id       String?
+  branch          GoBranch?                 @relation(fields: [branch_id], references: [id])
+  current_phone   String
+  requested_phone String
+  status          GoDriverPhoneChangeStatus @default(PENDING)
+  otp_verified_at DateTime
+  reviewed_by_id  String?
+  reviewed_by     User?                     @relation("PhoneChangeRequestReviewer", fields: [reviewed_by_id], references: [id], onDelete: SetNull)
+  reviewed_at     DateTime?
+  reject_reason   String?                   @db.VarChar(255)
+  created_at      DateTime                  @default(now())
+  updated_at      DateTime                  @updatedAt
+
+  @@index([status, created_at])
+  @@index([driver_id, status])
+  @@index([branch_id, status])
+  @@map("go_driver_phone_change_requests")
+}
+
+model GoDriverDocument {
+  id             String          @id @default(uuid())
+  driver_id      String
+  driver         GoDriverProfile @relation(fields: [driver_id], references: [id], onDelete: Cascade)
+  type           GoDocumentType
+  expires_at     DateTime?
+  is_valid       Boolean         @default(true)
+  /// Relative file under storage/driver-documents. Null when no front photo was uploaded.
+  image_key      String?
+  /// Back of the document. Null when no back photo was uploaded.
+  image_back_key String?
+  created_at     DateTime        @default(now())
+  updated_at     DateTime        @updatedAt
+
+  @@unique([driver_id, type])
+  @@index([driver_id])
+  @@map("go_driver_documents")
+}
+
+/// Car photos collected at driver onboarding (2–6). Relative file under storage/driver-vehicle-photos.
+model GoDriverVehiclePhoto {
+  id         String          @id @default(uuid())
+  driver_id  String
+  driver     GoDriverProfile @relation(fields: [driver_id], references: [id], onDelete: Cascade)
+  image_key  String
+  sort_order Int             @default(0)
+  created_at DateTime        @default(now())
+  updated_at DateTime        @updatedAt
+
+  @@index([driver_id, sort_order])
+  @@map("go_driver_vehicle_photos")
+}
+
+model GoVehicle {
+  id               String                  @id @default(uuid())
+  branch_id        String?
+  branch           GoBranch?               @relation(fields: [branch_id], references: [id])
+  driver_id        String?
+  driver           GoDriverProfile?        @relation("DriverOwnedVehicles", fields: [driver_id], references: [id])
+  active_for       GoDriverProfile?        @relation("DriverActiveVehicle")
+  /// Primary category (first of ride_categories). Kept for list/display compat.
+  ride_category_id String?
+  ride_category    GoRideCategory?         @relation(fields: [ride_category_id], references: [id])
+  plate_number     String                  @unique
+  make             String?
+  model            String?
+  color            String?
+  year             Int?
+  is_active        Boolean                 @default(true)
+  capabilities     GoVehicleCapability[]
+  ride_categories  GoVehicleRideCategory[]
+  rides            GoRide[]
+  created_at       DateTime                @default(now())
+  updated_at       DateTime                @updatedAt
+
+  @@index([driver_id])
+  @@index([branch_id])
+  @@map("go_vehicles")
+}
+
+/// Vehicle may serve multiple ride categories; dispatch matches if the ride category is in this set.
+model GoVehicleRideCategory {
+  id               String         @id @default(uuid())
+  vehicle_id       String
+  vehicle          GoVehicle      @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+  ride_category_id String
+  ride_category    GoRideCategory @relation(fields: [ride_category_id], references: [id])
+
+  @@unique([vehicle_id, ride_category_id])
+  @@index([ride_category_id])
+  @@map("go_vehicle_ride_categories")
+}
+
+model GoVehicleCapability {
+  id         String                @id @default(uuid())
+  vehicle_id String
+  vehicle    GoVehicle             @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+  type       GoRideRequirementType
+
+  @@unique([vehicle_id, type])
+  @@map("go_vehicle_capabilities")
+}
+
+/// Operational / dispatch config (Ticket §7.2). Values are dashboard-managed — no hard-codes in logic.
+model GoDispatchConfig {
+  id                                   String   @id @default("default")
+  batch_size                           Int      @default(3)
+  batch_timeout_seconds                Int      @default(10)
+  max_search_radius_m                  Int      @default(5000)
+  radius_steps_json                    Json
+  /// Fixed driver offer / map-circle radius (Option A). Offers only within this distance of pickup.
+  driver_offer_radius_m                Int      @default(500)
+  /// Keep SEARCHING at least this long before FAILED_NO_DRIVER when no candidates (same radius).
+  min_search_seconds                   Int      @default(90)
+  /// Delay between empty-candidate SEARCH_TICK retries while under min_search_seconds.
+  empty_search_retry_seconds           Int      @default(10)
+  busy_driver_max_eta_sec              Int      @default(300)
+  scheduled_busy_to_pickup_max_eta_sec Int      @default(180)
+  scheduled_required_early_arrival_sec Int      @default(120)
+  pickup_arrival_radius_m              Int      @default(10)
+  stale_location_seconds               Int      @default(60)
+  long_stop_seconds                    Int      @default(600)
+  /// Max distance (m) from planned route before MAJOR_ROUTE_DEVIATION (Ticket §12.6).
+  route_deviation_max_m                Int      @default(300)
+  scheduled_reminder_seconds           Int      @default(3600)
+  scheduled_online_required_seconds    Int      @default(1800)
+  scheduled_late_tolerance_seconds     Int      @default(300)
+  updated_at                           DateTime @updatedAt
+
+  @@map("go_dispatch_config")
+}
+
+// =====================================================================
+// PHASE 2 — Ride Core
+// =====================================================================
+
+enum GoRideType {
+  IMMEDIATE
+  SCHEDULED
+}
+
+enum GoRideStatus {
+  SEARCHING
+  DRIVER_ASSIGNED
+  DRIVER_EN_ROUTE
+  ARRIVED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED_BY_CUSTOMER
+  CANCELLED_BY_DRIVER
+  CANCELLED_BY_STAFF
+  NO_SHOW
+  INTERRUPTED
+  REPLACED
+  FAILED_NO_DRIVER
+}
+
+enum GoCancelActorRole {
+  CUSTOMER
+  DRIVER
+  STAFF
+}
+
+enum GoPaymentMethod {
+  CASH
+  SHAM_CASH
+  WALLET
+}
+
+/// Cash collection state (Ticket §21.1). No customer receipt.
+enum GoPaymentStatus {
+  PENDING
+  CASH_EXPECTED
+  COLLECTED
+  WAIVED
+}
+
+/// When a discount and a compensation both exist, staff must choose (Ticket §44).
+enum GoFareStackDecision {
+  PENDING
+  DISCOUNT_ONLY
+  COMPENSATION_ONLY
+  BOTH
+}
+
+enum GoBookingFor {
+  SELF
+  OTHER
+}
+
+enum GoDriverAvailability {
+  OFFLINE
+  ONLINE
+  BUSY
+}
+
+model GoRide {
+  id                           String                        @id @default(uuid())
+  public_number                String                        @unique
+  customer_id                  String
+  customer                     GoCustomerProfile             @relation("CustomerRides", fields: [customer_id], references: [id])
+  driver_id                    String?
+  driver                       GoDriverProfile?              @relation("DriverRides", fields: [driver_id], references: [id])
+  /// Driver's active vehicle when the ride was assigned.
+  vehicle_id                   String?
+  vehicle                      GoVehicle?                    @relation(fields: [vehicle_id], references: [id], onDelete: SetNull)
+  /// { plate_number, make, model, color, year } copied at assignment so later vehicle edits do not rewrite history.
+  vehicle_snapshot             Json?
+  branch_id                    String
+  branch                       GoBranch                      @relation(fields: [branch_id], references: [id])
+  ride_category_id             String
+  ride_category                GoRideCategory                @relation(fields: [ride_category_id], references: [id])
+  /// Booking service (Ticket §29 / FLEET). DAILY default; TOURIST/FLEET support multi-vehicle pricing.
+  service_code                 GoServiceCode                 @default(DAILY)
+  service                      GoService                     @relation(fields: [service_code], references: [code])
+  /// Passenger headcount (required for TOURIST). Null for DAILY when the app does not send it.
+  passengers_count             Int?
+  /// Vehicles requested. Fare is scaled by this for TOURIST / FLEET random; mix uses fleet_vehicles.
+  vehicles_count               Int                           @default(1)
+  /// FLEET: true = random category mix (reference fare × vehicles_count).
+  random_vehicles              Boolean                       @default(false)
+  /// FLEET mix: [{ ride_category_id, count }]. Null for random / non-fleet.
+  fleet_vehicles               Json?
+  type                         GoRideType
+  status                       GoRideStatus
+  payment_method               GoPaymentMethod               @default(CASH)
+  payment_status               GoPaymentStatus               @default(CASH_EXPECTED)
+  /// Null when discount and compensation do not both apply.
+  fare_stack_decision          GoFareStackDecision?
+  booking_for                  GoBookingFor                  @default(SELF)
+  other_passenger_name         String?
+  /// Never sent to drivers (responses, offers or socket events).
+  other_passenger_phone        String?
+  /// Name on the pickup sign; OTHER bookings only.
+  pickup_sign_name             String?                       @db.VarChar(60)
+  share_tracking_link          Boolean                       @default(false)
+  /// Bearer secret of the public tracking page (/t/:token). Omitted from every query unless selected.
+  tracking_token               String?                       @unique @db.VarChar(64)
+  /// Free-text note from the customer to the driver.
+  customer_note                String?                       @db.VarChar(150)
+  /// ISO 639-1 code the customer wants the driver to speak (e.g. ar, en, fr).
+  /// VIP category and TOURIST service: required — dispatch only offers matching drivers.
+  /// Other rides: soft preference (matching drivers ranked first).
+  preferred_driver_language    String                        @default("ar") @db.VarChar(16)
+  scheduled_at                 DateTime?
+  /// When dispatch search clock started (IMMEDIATE ≈ create; SCHEDULED / re-search = send / re-enter SEARCHING).
+  search_started_at            DateTime?
+  /// RENTAL booked end (chauffeur hire window). Null for non-rental rides.
+  rental_ends_at               DateTime?
+  pickup_lat                   Decimal                       @db.Decimal(10, 7)
+  pickup_lng                   Decimal                       @db.Decimal(10, 7)
+  pickup_address               String?
+  /// How the customer set the pickup: PIN | GPS | SEARCH | SAVED_PLACE. Null on older rides.
+  pickup_source                String?                       @db.VarChar(32)
+  /// Last time pickup lat/lng/address changed after creation (null = never amended).
+  pickup_updated_at            DateTime?
+  /// H3 res-9 cell of the pickup, used by Radar demand aggregation. Older rides are backfilled by the radar tick.
+  pickup_h3                    String?                       @db.VarChar(16)
+  original_destination_lat     Decimal                       @db.Decimal(10, 7)
+  original_destination_lng     Decimal                       @db.Decimal(10, 7)
+  original_destination_address String?
+  actual_start_lat             Decimal?                      @db.Decimal(10, 7)
+  actual_start_lng             Decimal?                      @db.Decimal(10, 7)
+  actual_dropoff_lat           Decimal?                      @db.Decimal(10, 7)
+  actual_dropoff_lng           Decimal?                      @db.Decimal(10, 7)
+  estimated_distance_m         Int?
+  estimated_duration_sec       Int?
+  estimated_fare               Decimal?                      @db.Decimal(18, 2)
+  estimated_route_polyline     String?
+  estimated_route_source       String?
+  estimated_route_summary      String?
+  /// Driver → pickup distance (m) captured at assignment. Live ETA may still update in apps.
+  to_pickup_distance_m         Int?
+  actual_distance_m            Int?
+  actual_duration_sec          Int?
+  billable_waiting_sec         Int                           @default(0)
+  gross_final_fare             Decimal?                      @db.Decimal(18, 2)
+  discount_total               Decimal?                      @db.Decimal(18, 2)
+  compensation_total           Decimal?                      @db.Decimal(18, 2)
+  customer_payable             Decimal?                      @db.Decimal(18, 2)
+  /// Amount currently taken from the customer wallet for a WALLET ride (held at creation, trued-up at completion).
+  wallet_paid_amount           Decimal                       @default(0) @db.Decimal(18, 2)
+  assigned_at                  DateTime?
+  arrived_at                   DateTime?
+  started_at                   DateTime?
+  completed_at                 DateTime?
+  cancelled_at                 DateTime?
+  no_show_at                   DateTime?
+  cancel_actor_role            GoCancelActorRole?
+  cancel_reason_code           String?
+  cancel_reason_text           String?
+  cancel_score_event           String?
+  replacement_of_ride_id       String?
+  replacement_of_ride          GoRide?                       @relation("RideReplacement", fields: [replacement_of_ride_id], references: [id])
+  replacement_rides            GoRide[]                      @relation("RideReplacement")
+  /// Rates fixed at creation { base_fare, price_per_km, price_per_minute, minimum_fare, night_pct, currency }.
+  /// Completion and re-pricing read it so later price edits do not change this ride. Null on older rides.
+  pricing_snapshot             Json?
+  /// Driver bonus (% of the gross fare) paid by the company on completion. Null = no bonus.
+  incentive_percentage         Decimal?                      @db.Decimal(5, 2)
+  /// REJECTION | DISTANCE | REJECTION+DISTANCE — which rule set incentive_percentage.
+  incentive_reason             String?                       @db.VarChar(40)
+  /// Set once enough different drivers declined (or let expire) this ride's offers.
+  incentive_rejection_pct      Decimal?                      @db.Decimal(5, 2)
+  /// Set at creation when the pickup is far from the branch centre.
+  incentive_distance_pct       Decimal?                      @db.Decimal(5, 2)
+  created_at                   DateTime                      @default(now())
+  updated_at                   DateTime                      @updatedAt
+  stops                        GoRideStop[]
+  requirements                 GoRideRequirement[]
+  offers                       GoRideOffer[]
+  alerts                       GoOperationalAlert[]
+  complaints                   GoComplaint[]
+  emergencies                  GoEmergencySession[]
+  cases                        GoRideCase[]                  @relation("CaseOriginalRide")
+  replacement_for_cases        GoRideCase[]                  @relation("CaseReplacementRide")
+  entitlements                 GoDriverEntitlement[]
+  wallet_transactions          GoDriverWalletTransaction[]
+  customer_wallet_transactions GoCustomerWalletTransaction[]
+  commission_hold              GoWalletCommissionHold?
+  compensations                GoRideCompensation[]
+  score_ledger                 GoPassportScoreLedger[]
+  driver_score_ledger          GoDriverPassportScoreLedger[]
+  discount_reservation         GoRideDiscountReservation?
+  ratings                      GoRideRating[]
+  messages                     GoRideMessage[]
+  incentive_grants             GoDriverIncentiveGrant[]
+
+  @@index([customer_id, status])
+  @@index([driver_id, status])
+  @@index([branch_id, status])
+  @@index([status, created_at])
+  @@index([type, scheduled_at])
+  @@index([replacement_of_ride_id])
+  @@index([service_code, status])
+  @@index([pickup_h3, created_at])
+  @@index([branch_id, created_at])
+  @@map("go_rides")
+}
+
+model GoRideStop {
+  id              String    @id @default(uuid())
+  ride_id         String
+  ride            GoRide    @relation(fields: [ride_id], references: [id], onDelete: Cascade)
+  sequence        Int
+  latitude        Decimal   @db.Decimal(10, 7)
+  longitude       Decimal   @db.Decimal(10, 7)
+  address         String?
+  arrived_at      DateTime?
+  departed_at     DateTime?
+  waiting_seconds Int       @default(0)
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  @@unique([ride_id, sequence])
+  @@index([ride_id])
+  @@map("go_ride_stops")
+}
+
+model GoRideRequirement {
+  id         String                @id @default(uuid())
+  ride_id    String
+  ride       GoRide                @relation(fields: [ride_id], references: [id], onDelete: Cascade)
+  type       GoRideRequirementType
+  created_at DateTime              @default(now())
+
+  @@unique([ride_id, type])
+  @@map("go_ride_requirements")
+}
+
+// =====================================================================
+// PHASE 6 (ticket body) — Ratings (Ticket §11)
+// =====================================================================
+
+enum GoRatingDirection {
+  CUSTOMER_TO_DRIVER
+  DRIVER_TO_CUSTOMER
+}
+
+model GoRideRating {
+  id           String               @id @default(uuid())
+  ride_id      String
+  ride         GoRide               @relation(fields: [ride_id], references: [id], onDelete: Cascade)
+  direction    GoRatingDirection
+  from_user_id String
+  from_user    User                 @relation("RatingFromUser", fields: [from_user_id], references: [id])
+  to_user_id   String
+  to_user      User                 @relation("RatingToUser", fields: [to_user_id], references: [id])
+  stars        Int
+  notes        String?
+  created_at   DateTime             @default(now())
+  reasons      GoRideRatingReason[]
+
+  @@unique([ride_id, direction])
+  @@index([from_user_id])
+  @@index([to_user_id])
+  @@map("go_ride_ratings")
+}
+
+model GoRideRatingReason {
+  id          String       @id @default(uuid())
+  rating_id   String
+  rating      GoRideRating @relation(fields: [rating_id], references: [id], onDelete: Cascade)
+  reason_code String
+  created_at  DateTime     @default(now())
+
+  @@index([rating_id])
+  @@map("go_ride_rating_reasons")
+}
+
+// =====================================================================
+// Customer <-> driver chat, scoped to one ride
+// =====================================================================
+
+enum GoChatSenderRole {
+  CUSTOMER
+  DRIVER
+}
+
+enum GoChatMessageType {
+  TEXT
+  IMAGE
+  VOICE
+}
+
+model GoRideMessage {
+  id             String            @id @default(uuid())
+  /// Insertion order; `after_id` / `up_to_id` cursors compare on this, never on the uuid.
+  seq            Int               @unique @default(autoincrement())
+  ride_id        String
+  ride           GoRide            @relation(fields: [ride_id], references: [id], onDelete: Cascade)
+  /// Sender-generated 32-hex id; a resend with the same id returns the stored message.
+  client_id      String            @db.VarChar(32)
+  sender_role    GoChatSenderRole
+  sender_user_id String
+  sender_user    User              @relation(fields: [sender_user_id], references: [id])
+  type           GoChatMessageType
+  text           String?           @db.VarChar(1000)
+  /// File name under storage/chat-media, e.g. `<id>.m4a`.
+  media_key      String?
+  media_mime     String?           @db.VarChar(40)
+  duration_sec   Int?
+  created_at     DateTime          @default(now())
+  read_at        DateTime?
+
+  @@unique([ride_id, sender_role, client_id])
+  @@index([ride_id, seq])
+  @@map("go_ride_messages")
+}
+
+model GoDriverState {
+  driver_id        String               @id
+  driver           GoDriverProfile      @relation(fields: [driver_id], references: [id], onDelete: Cascade)
+  availability     GoDriverAvailability @default(OFFLINE)
+  last_lat         Decimal?             @db.Decimal(10, 7)
+  last_lng         Decimal?             @db.Decimal(10, 7)
+  h3_index         String?
+  last_location_at DateTime?
+  current_ride_id  String?
+  next_ride_id     String?
+  updated_at       DateTime             @updatedAt
+
+  @@index([h3_index])
+  @@index([availability, h3_index])
+  @@map("go_driver_states")
+}
+
+// =====================================================================
+// PHASE 3 — Dispatch / Ride Offers (Ticket §7)
+// =====================================================================
+
+enum GoRideOfferStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  TAKEN_BY_OTHER
+}
+
+model GoRideOffer {
+  id                String            @id @default(uuid())
+  ride_id           String
+  ride              GoRide            @relation(fields: [ride_id], references: [id], onDelete: Cascade)
+  driver_id         String
+  driver            GoDriverProfile   @relation(fields: [driver_id], references: [id], onDelete: Cascade)
+  batch_number      Int
+  radius_m          Int
+  status            GoRideOfferStatus @default(PENDING)
+  offered_at        DateTime          @default(now())
+  expires_at        DateTime
+  responded_at      DateTime?
+  effective_eta_sec Int?
+
+  @@unique([ride_id, driver_id])
+  @@index([ride_id, status])
+  @@index([driver_id, status])
+  @@map("go_ride_offers")
+}
+
+// =====================================================================
+// PHASE 4 — Scheduled engine alerts (subset of Ticket §12; full monitoring = Phase 5/7)
+// =====================================================================
+
+enum GoOperationalAlertType {
+  LONG_STOP
+  LOCATION_STALE
+  MAJOR_ROUTE_DEVIATION
+  SCHEDULED_DRIVER_OFFLINE
+  SCHEDULED_DRIVER_DELAY
+  URGENT_COMPLAINT
+  EMERGENCY
+  /// Command Center: unassigned requests in an area exceed nearby available drivers. No ride_id.
+  DRIVER_COVERAGE_LOW
+  /// Command Center: an immediate request has been SEARCHING longer than the threshold.
+  ASSIGNMENT_DELAYED
+  /// Command Center: an IN_PROGRESS ride is well past its estimated duration.
+  RIDE_DELAYED
+  /// Command Center: branch cancellation rate over the recent window exceeds the threshold. No ride_id.
+  CANCELLATION_RATE_HIGH
+  /// Driver reported breakdown/accident — CS must assign a replacement driver (or re-dispatch before pickup).
+  REPLACEMENT_NEEDED
+}
+
+enum GoOperationalAlertStatus {
+  OPEN
+  /// Acknowledged by a staff member.
+  CLAIMED
+  RESOLVED
+}
+
+enum GoAlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model GoOperationalAlert {
+  id            String                   @id @default(uuid())
+  /// Null for area / branch alerts raised by the Command Center (coverage, cancellation rate).
+  ride_id       String?
+  ride          GoRide?                  @relation(fields: [ride_id], references: [id], onDelete: Cascade)
+  branch_id     String
+  branch        GoBranch                 @relation(fields: [branch_id], references: [id])
+  type          GoOperationalAlertType
+  severity      GoAlertSeverity          @default(WARNING)
+  /// H3 cell of the area the alert is about (coverage alerts).
+  h3_cell       String?                  @db.VarChar(16)
+  /// What was measured and the configured limit it crossed (Command Center alerts).
+  measured_value Decimal?                @db.Decimal(12, 2)
+  threshold     Decimal?                 @db.Decimal(12, 2)
+  /// Same key inside the dedupe window returns the existing alert instead of a new one.
+  dedupe_key    String?                  @db.VarChar(160)
+  status        GoOperationalAlertStatus @default(OPEN)
+  occurrence_no Int?
+  started_at    DateTime                 @default(now())
+  resolved_at   DateTime?
+  claimed_by_id String?
+  claimed_by    User?                    @relation(fields: [claimed_by_id], references: [id])
+  claimed_at    DateTime?
+  auto_resolved Boolean                  @default(false)
+  metadata      Json?
+  created_at    DateTime                 @default(now())
+  updated_at    DateTime                 @updatedAt
+
+  @@index([status, type])
+  @@index([ride_id, type, status])
+  @@index([branch_id, status])
+  @@index([dedupe_key, created_at])
+  @@map("go_operational_alerts")
+}
+
+/// Command Center alert thresholds (single row "default"). Admin-edited; every change is audited.
+model GoCommandCenterConfig {
+  id                           String   @id @default("default")
+  alerts_enabled               Boolean  @default(true)
+  /// Coverage alert: at least this many unassigned requests in one area, and more requests than nearby available drivers.
+  coverage_min_unassigned      Int      @default(3)
+  /// Assignment alert: an immediate request still SEARCHING after this many seconds.
+  assignment_delay_seconds     Int      @default(180)
+  /// Delayed ride: elapsed > estimated_duration × factor AND elapsed > estimated + min_extra.
+  ride_delay_factor            Decimal  @default(1.5) @db.Decimal(4, 2)
+  ride_delay_min_extra_seconds Int      @default(600)
+  /// Cancellation alert: cancelled ÷ finished rides created in the window, once at least min_rides finished.
+  cancellation_rate_pct        Decimal  @default(30) @db.Decimal(5, 2)
+  cancellation_window_minutes  Int      @default(60)
+  cancellation_min_rides       Int      @default(10)
+  /// A repeat of the same alert key within this window is not raised again.
+  dedupe_minutes               Int      @default(30)
+  updated_at                   DateTime @updatedAt
+
+  @@map("go_command_center_config")
+}
+
+// =====================================================================
+// PHASE 6 — Complaints / Emergency (Ticket §14–15)
+// =====================================================================
+
+enum GoComplaintStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  CLOSED
+}
+
+enum GoComplaintPriority {
+  NORMAL
+  URGENT
+}
+
+model GoComplaint {
+  id                    String              @id @default(uuid())
+  ride_id               String
+  ride                  GoRide              @relation(fields: [ride_id], references: [id], onDelete: Cascade)
+  customer_id           String
+  customer              GoCustomerProfile   @relation(fields: [customer_id], references: [id])
+  driver_id             String?
+  driver                GoDriverProfile?    @relation(fields: [driver_id], references: [id])
+  branch_id             String
+  branch                GoBranch            @relation(fields: [branch_id], references: [id])
+  priority              GoComplaintPriority @default(NORMAL)
+  status                GoComplaintStatus   @default(OPEN)
+  reason_code           String
+  notes                 String?
+  staff_notes           String?
+  submitted_during_ride Boolean             @default(false)
+  assigned_to_id        String?
+  assigned_to           User?               @relation("ComplaintAssignee", fields: [assigned_to_id], references: [id])
+  resolved_by_id        String?
+  resolved_by           User?               @relation("ComplaintResolver", fields: [resolved_by_id], references: [id])
+  resolved_at           DateTime?
+  created_at            DateTime            @default(now())
+  updated_at            DateTime            @updatedAt
+
+  @@index([branch_id, status])
+  @@index([ride_id])
+  @@index([priority, status])
+  @@index([customer_id, created_at])
+  @@map("go_complaints")
+}
+
+/// General (non-ride) support inbox from the customer account (Ticket §26).
+enum GoSupportMessageStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+model GoSupportMessage {
+  id           String                 @id @default(uuid())
+  /// Public short code shown to the customer (e.g. SUP-A1B2C3D4).
+  reference    String                 @unique @db.VarChar(20)
+  /// Exactly one of customer_id / driver_id is set.
+  customer_id  String?
+  customer     GoCustomerProfile?     @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  driver_id    String?
+  driver       GoDriverProfile?       @relation(fields: [driver_id], references: [id], onDelete: Cascade)
+  full_name    String                 @db.VarChar(120)
+  phone        String                 @db.VarChar(32)
+  email        String?                @db.VarChar(254)
+  message      String                 @db.VarChar(2000)
+  status       GoSupportMessageStatus @default(OPEN)
+  claimed_by_id String?
+  claimed_by   User?                  @relation("SupportMessageClaimedBy", fields: [claimed_by_id], references: [id], onDelete: SetNull)
+  reply        String?                @db.VarChar(4000)
+  created_at   DateTime               @default(now())
+  updated_at   DateTime               @updatedAt
+  closed_at    DateTime?
+
+  @@index([customer_id, created_at])
+  @@index([driver_id, created_at])
+  @@index([status, created_at])
+  @@map("go_support_messages")
+}
+
+enum GoEmergencyStatus {
+  ACTIVE
+  HANDLED
+  CLOSED
+}
+
+enum GoEmergencyStartedBy {
+  CUSTOMER
+  DRIVER
+}
+
+enum GoEmergencyRecordingStatus {
+  LIVE
+  PENDING_DECISION
+  SAVED
+  DELETED
+}
+
+model GoEmergencySession {
+  id                    String                     @id @default(uuid())
+  ride_id               String
+  ride                  GoRide                     @relation(fields: [ride_id], references: [id], onDelete: Cascade)
+  customer_id           String
+  customer              GoCustomerProfile          @relation(fields: [customer_id], references: [id])
+  branch_id             String
+  branch                GoBranch                   @relation(fields: [branch_id], references: [id])
+  status                GoEmergencyStatus          @default(ACTIVE)
+  /// Who pressed SOS first (shared session — second party gets already_active).
+  started_by            GoEmergencyStartedBy       @default(CUSTOMER)
+  started_at            DateTime                   @default(now())
+  ended_at              DateTime?
+  started_lat           Decimal?                   @db.Decimal(10, 7)
+  started_lng           Decimal?                   @db.Decimal(10, 7)
+  /// Latest position sent while the session is open (starts at started_lat/lng).
+  last_lat              Decimal?                   @db.Decimal(10, 7)
+  last_lng              Decimal?                   @db.Decimal(10, 7)
+  last_location_at      DateTime?
+  /// When customer service claimed it; null if it was closed without a claim.
+  claimed_at            DateTime?
+  handled_by_id         String?
+  handled_by            User?                      @relation("EmergencyHandler", fields: [handled_by_id], references: [id])
+  recording_status      GoEmergencyRecordingStatus @default(LIVE)
+  recording_storage_key String?
+  saved_by_id           String?
+  saved_by              User?                      @relation("EmergencySaver", fields: [saved_by_id], references: [id])
+  saved_at              DateTime?
+  deleted_by_id         String?
+  deleted_by            User?                      @relation("EmergencyDeleter", fields: [deleted_by_id], references: [id])
+  deleted_at            DateTime?
+  created_at            DateTime                   @default(now())
+  updated_at            DateTime                   @updatedAt
+
+  @@index([branch_id, status])
+  @@index([ride_id])
+  @@map("go_emergency_sessions")
+}
+
+// =====================================================================
+// PHASE 7 — Incidents / Replacement / Entitlement (Ticket §16–18)
+// =====================================================================
+
+enum GoCaseType {
+  ACCIDENT
+  BREAKDOWN
+}
+
+enum GoCaseStatus {
+  OPEN
+  IN_REVIEW
+  CLOSED
+}
+
+enum GoAccidentSeverity {
+  SIMPLE
+  MEDIUM
+  SEVERE
+}
+
+model GoRideCase {
+  id                   String              @id @default(uuid())
+  case_number          String              @unique
+  ride_id              String
+  ride                 GoRide              @relation("CaseOriginalRide", fields: [ride_id], references: [id], onDelete: Cascade)
+  branch_id            String
+  branch               GoBranch            @relation(fields: [branch_id], references: [id])
+  customer_id          String
+  customer             GoCustomerProfile   @relation(fields: [customer_id], references: [id])
+  driver_id            String?
+  driver               GoDriverProfile?    @relation(fields: [driver_id], references: [id])
+  type                 GoCaseType
+  status               GoCaseStatus        @default(OPEN)
+  accident_severity    GoAccidentSeverity?
+  reason_code          String?
+  /// Dedupes auto-create from LONG_STOP resolve (Ticket §16.3).
+  source_alert_id      String?             @unique
+  occurred_at          DateTime            @default(now())
+  latitude             Decimal?            @db.Decimal(10, 7)
+  longitude            Decimal?            @db.Decimal(10, 7)
+  customer_statement   String?
+  driver_statement     String?
+  negligence_suspected Boolean?
+  supervisor_decision  String?
+  replacement_ride_id  String?
+  replacement_ride     GoRide?             @relation("CaseReplacementRide", fields: [replacement_ride_id], references: [id])
+  closed_by_id         String?
+  closed_by            User?               @relation("CaseCloser", fields: [closed_by_id], references: [id])
+  closed_at            DateTime?
+  created_at           DateTime            @default(now())
+  updated_at           DateTime            @updatedAt
+  notes                GoRideCaseNote[]
+
+  @@index([branch_id, status])
+  @@index([ride_id, type])
+  @@index([type, status])
+  @@map("go_ride_cases")
+}
+
+model GoRideCaseNote {
+  id         String     @id @default(uuid())
+  case_id    String
+  case       GoRideCase @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  author_id  String
+  author     User       @relation(fields: [author_id], references: [id])
+  note       String
+  created_at DateTime   @default(now())
+
+  @@index([case_id])
+  @@map("go_ride_case_notes")
+}
+
+enum GoDriverEntitlementStatus {
+  CALCULATED
+  UNDER_REVIEW
+  APPROVED
+  PARTIAL
+  REJECTED
+  SETTLED
+}
+
+model GoDriverEntitlement {
+  id                 String                    @id @default(uuid())
+  ride_id            String
+  ride               GoRide                    @relation(fields: [ride_id], references: [id], onDelete: Cascade)
+  driver_id          String
+  driver             GoDriverProfile           @relation(fields: [driver_id], references: [id])
+  calculated_amount  Decimal                   @db.Decimal(18, 2)
+  approved_amount    Decimal?                  @db.Decimal(18, 2)
+  status             GoDriverEntitlementStatus @default(CALCULATED)
+  negligence_related Boolean                   @default(false)
+  finance_notes      String?
+  reviewed_by_id     String?
+  reviewed_by        User?                     @relation("EntitlementReviewer", fields: [reviewed_by_id], references: [id])
+  reviewed_at        DateTime?
+  created_at         DateTime                  @default(now())
+  updated_at         DateTime                  @updatedAt
+
+  @@unique([ride_id, driver_id])
+  @@index([status])
+  @@index([driver_id])
+  @@map("go_driver_entitlements")
+}
+
+// =====================================================================
+// PHASE 8 — Wallet / Finance / Compensation (Ticket §19–20)
+// =====================================================================
+
+enum GoWalletTransactionType {
+  TOP_UP
+  COMMISSION_DEDUCTION
+  REVERSAL
+  ADJUSTMENT
+  COMPENSATION_BEARER
+  DRIVER_CANCEL_PENALTY
+  RIDE_PAYMENT
+  RIDE_REFUND
+  /// Company-paid driver incentive (streak, goal campaign, ride bonus).
+  INCENTIVE_BONUS
+  /// Company pays the ride discount into the driver wallet so the driver is not short when the customer pays less.
+  DISCOUNT_SUBSIDY
+  /// Cash top-up at an authorised store. Linked 1:1 to a store ledger debit.
+  POS_RECHARGE
+  /// Peer transfer: debit on sender.
+  TRANSFER_OUT
+  /// Peer transfer: credit on recipient.
+  TRANSFER_IN
+}
+
+enum GoWalletVoucherStatus {
+  UNUSED
+  REDEEMED
+  EXPIRED
+  DISABLED
+}
+
+enum GoIncentiveKind {
+  STREAK_DAILY
+  GOAL_CAMPAIGN
+  RIDE_REJECTION
+  RIDE_DISTANCE
+  /// One-off staff grant from the desk to a specific driver.
+  MANUAL
+}
+
+enum GoRideBonusStack {
+  MAX
+  SUM
+}
+
+/// Driver incentive settings (single row "default"). Days and hours are in `timezone`.
+model GoIncentiveConfig {
+  id                      String           @id @default("default")
+  timezone                String           @default("Asia/Damascus") @db.VarChar(64)
+  /// Rides shorter than this never count toward streaks, goals or ride bonuses.
+  min_counted_distance_m  Int              @default(1000)
+  /// Sum of all bonuses paid per day. Null = no cap. Grants past it are skipped and audited.
+  daily_total_cap         Decimal?         @db.Decimal(18, 2)
+  /// Night fare: customer surcharge for rides requested (or scheduled) inside [night_start, night_end).
+  night_fare_enabled      Boolean          @default(false)
+  night_start             String           @default("00:00") @db.VarChar(5)
+  night_end               String           @default("07:00") @db.VarChar(5)
+  night_fare_pct          Decimal          @default(20) @db.Decimal(5, 2)
+  /// Empty = every category.
+  night_category_ids      String[]         @default([])
+  /// Rejection bonus: once `rejection_min_drivers` different drivers declined a ride, the accepting driver earns rejection_pct of the fare.
+  rejection_enabled       Boolean          @default(false)
+  rejection_min_drivers   Int              @default(5)
+  rejection_pct           Decimal          @default(15) @db.Decimal(5, 2)
+  rejection_cap           Decimal?         @db.Decimal(18, 2)
+  /// Count offers left to expire as rejections.
+  rejection_count_expired Boolean          @default(true)
+  /// Distance bonus: pickup farther than distance_min_km from the branch centre.
+  distance_enabled        Boolean          @default(false)
+  distance_min_km         Decimal          @default(15) @db.Decimal(6, 2)
+  distance_pct            Decimal          @default(10) @db.Decimal(5, 2)
+  distance_cap            Decimal?         @db.Decimal(18, 2)
+  /// When both apply: MAX pays the larger one, SUM pays both.
+  ride_bonus_stack        GoRideBonusStack @default(MAX)
+  /// Streak: `streak_rides` completed rides in a row with no decline / driver cancel pays `streak_amount` once per day.
+  streak_enabled          Boolean          @default(false)
+  streak_rides            Int              @default(3)
+  streak_amount           Decimal          @default(25000) @db.Decimal(18, 2)
+  /// Count offers left to expire as breaking the streak.
+  streak_count_expired    Boolean          @default(true)
+  /// Incentive day boundary (HH:mm). Day D runs from D at this time to D+1 at this time; streaks are paid when it ends.
+  daily_close_time        String           @default("00:00") @db.VarChar(5)
+  /// Composite driver score over the last `score_window_days`. Weights are relative (normalised by their sum).
+  score_window_days       Int              @default(30)
+  weight_rating           Decimal          @default(30) @db.Decimal(5, 2)
+  weight_acceptance       Decimal          @default(25) @db.Decimal(5, 2)
+  weight_hours            Decimal          @default(20) @db.Decimal(5, 2)
+  weight_earnings         Decimal          @default(25) @db.Decimal(5, 2)
+  /// Points removed per 100% driver-cancel rate. 0 = cancellations not scored.
+  weight_cancel           Decimal          @default(0) @db.Decimal(5, 2)
+  band_keep               Decimal          @default(75) @db.Decimal(5, 2)
+  band_watch              Decimal          @default(50) @db.Decimal(5, 2)
+  updated_at              DateTime         @updatedAt
+
+  @@map("go_incentive_config")
+}
+
+enum GoOnlineSessionEnd {
+  DRIVER_OFFLINE
+  FORCED_OFFLINE
+  STALE_LOCATION
+}
+
+/// Time a driver was available (ONLINE or BUSY). Open while ended_at is null.
+model GoDriverOnlineSession {
+  id         String              @id @default(uuid())
+  driver_id  String
+  driver     GoDriverProfile     @relation(fields: [driver_id], references: [id], onDelete: Cascade)
+  started_at DateTime            @default(now())
+  ended_at   DateTime?
+  end_reason GoOnlineSessionEnd?
+
+  @@index([driver_id, started_at])
+  @@index([ended_at])
+  @@map("go_driver_online_sessions")
+}
+
+enum GoDriverScoreBand {
+  KEEP
+  WATCH
+  REPLACEABLE
+}
+
+/// Nightly composite score per driver; `day` is the incentive day the window ends on.
+model GoDriverScoreSnapshot {
+  id             String            @id @default(uuid())
+  driver_id      String
+  driver         GoDriverProfile   @relation(fields: [driver_id], references: [id], onDelete: Cascade)
+  branch_id      String?
+  day            String            @db.VarChar(10)
+  window_days    Int
+  rating         Decimal?          @db.Decimal(3, 2)
+  ratings_count  Int               @default(0)
+  acceptance_pct Decimal?          @db.Decimal(5, 2)
+  offers_count   Int               @default(0)
+  online_hours   Decimal           @db.Decimal(8, 2)
+  earnings       Decimal           @db.Decimal(18, 2)
+  completed      Int
+  cancel_pct     Decimal?          @db.Decimal(5, 2)
+  score          Decimal           @db.Decimal(5, 2)
+  band           GoDriverScoreBand
+  /// Points per metric and the weights used.
+  breakdown      Json
+  created_at     DateTime          @default(now())
+
+  @@unique([driver_id, day])
+  @@index([day, score])
+  @@map("go_driver_score_snapshots")
+}
+
+/// Goal campaign: complete `rides_required` rides inside [start_time, end_time) on `days_of_week` to earn `reward_amount`.
+model GoGoalCampaign {
+  id             String    @id @default(uuid())
+  name           String    @db.VarChar(120)
+  /// HH:mm local. end_time before start_time = the window crosses midnight (belongs to the start day).
+  start_time     String    @db.VarChar(5)
+  end_time       String    @db.VarChar(5)
+  /// 0 = Sunday … 6 = Saturday, of the start day. Empty = every day.
+  days_of_week   Int[]     @default([])
+  rides_required Int
+  reward_amount  Decimal   @db.Decimal(18, 2)
+  /// Null = every branch.
+  branch_id      String?
+  branch         GoBranch? @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  is_active      Boolean   @default(true)
+  created_by_id  String?
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  grants GoDriverIncentiveGrant[]
+
+  @@index([is_active])
+  @@map("go_goal_campaigns")
+}
+
+/// Bookkeeping for scheduled incentive work: one row per streak day or campaign occurrence.
+model GoIncentiveRun {
+  id          String          @id @default(uuid())
+  kind        GoIncentiveKind
+  /// Day (YYYY-MM-DD) for streaks, campaignId:day for campaigns.
+  period_key  String          @db.VarChar(80)
+  /// Campaign start push sent.
+  notified_at DateTime?
+  settled_at  DateTime?
+  stats       Json?
+  created_at  DateTime        @default(now())
+
+  @@unique([kind, period_key])
+  @@map("go_incentive_runs")
+}
+
+/// One paid incentive. The unique key makes every grant idempotent.
+model GoDriverIncentiveGrant {
+  id                    String                    @id @default(uuid())
+  driver_id             String
+  driver                GoDriverProfile           @relation(fields: [driver_id], references: [id], onDelete: Cascade)
+  kind                  GoIncentiveKind
+  ride_id               String?
+  ride                  GoRide?                   @relation(fields: [ride_id], references: [id], onDelete: SetNull)
+  campaign_id           String?
+  campaign              GoGoalCampaign?           @relation(fields: [campaign_id], references: [id], onDelete: SetNull)
+  /// Day key (YYYY-MM-DD) for streaks, campaignId:day for goals, ride id for ride bonuses.
+  period_key            String                    @db.VarChar(80)
+  amount                Decimal                   @db.Decimal(18, 2)
+  wallet_transaction_id String                    @unique
+  wallet_transaction    GoDriverWalletTransaction @relation(fields: [wallet_transaction_id], references: [id])
+  metadata              Json?
+  created_at            DateTime                  @default(now())
+
+  @@unique([driver_id, kind, period_key])
+  @@index([created_at])
+  @@index([kind, created_at])
+  @@map("go_driver_incentive_grants")
+}
+
+/// Commission base for final deduction (Ticket §44 — configurable, not hard-coded).
+enum GoCommissionBase {
+  GROSS_FINAL_FARE
+  CUSTOMER_PAYABLE
+}
+
+model GoWalletConfig {
+  id                           String           @id @default("default")
+  minimum_initial_topup        Decimal          @default(10000) @db.Decimal(18, 2)
+  commission_percentage        Decimal          @default(10) @db.Decimal(5, 2)
+  commission_base              GoCommissionBase @default(GROSS_FINAL_FARE)
+  /// Used for online eligibility + new-driver remaining-rides estimate.
+  system_average_fare          Decimal          @default(5000) @db.Decimal(18, 2)
+  low_balance_amount_enabled   Boolean          @default(true)
+  low_balance_amount           Decimal?         @default(20000) @db.Decimal(18, 2)
+  low_balance_rides_enabled    Boolean          @default(true)
+  low_balance_remaining_rides  Int?             @default(3)
+  /// Fixed wallet penalty when a driver cancels an assigned ride.
+  driver_cancel_penalty_amount Decimal          @default(2000) @db.Decimal(18, 2)
+  updated_at                   DateTime         @updatedAt
+
+  @@map("go_wallet_config")
+}
+
+model GoDriverWallet {
+  id                     String                      @id @default(uuid())
+  driver_id              String                      @unique
+  driver                 GoDriverProfile             @relation(fields: [driver_id], references: [id], onDelete: Cascade)
+  balance                Decimal                     @default(0) @db.Decimal(18, 2)
+  last_commission_amount Decimal?                    @db.Decimal(18, 2)
+  /// Unsettled shortfall when final commission > available (Ticket §20.6).
+  outstanding_due        Decimal                     @default(0) @db.Decimal(18, 2)
+  created_at             DateTime                    @default(now())
+  updated_at             DateTime                    @updatedAt
+  transactions           GoDriverWalletTransaction[]
+  holds                  GoWalletCommissionHold[]
+
+  @@map("go_driver_wallets")
+}
+
+model GoDriverWalletTransaction {
+  id                      String                      @id @default(uuid())
+  wallet_id               String
+  wallet                  GoDriverWallet              @relation(fields: [wallet_id], references: [id], onDelete: Cascade)
+  driver_id               String
+  driver                  GoDriverProfile             @relation(fields: [driver_id], references: [id])
+  type                    GoWalletTransactionType
+  amount                  Decimal                     @db.Decimal(18, 2)
+  balance_before          Decimal                     @db.Decimal(18, 2)
+  balance_after           Decimal                     @db.Decimal(18, 2)
+  ride_id                 String?
+  ride                    GoRide?                     @relation(fields: [ride_id], references: [id])
+  reversed_transaction_id String?
+  reversed_of             GoDriverWalletTransaction?  @relation("WalletReversal", fields: [reversed_transaction_id], references: [id])
+  reversals               GoDriverWalletTransaction[] @relation("WalletReversal")
+  reason                  String?
+  created_by_id           String?
+  created_by              User?                       @relation(fields: [created_by_id], references: [id])
+  created_at              DateTime                    @default(now())
+  incentive_grant         GoDriverIncentiveGrant?
+  store_ledger_entry      GoStoreLedgerEntry?
+
+  @@index([driver_id, created_at])
+  @@index([wallet_id, created_at])
+  @@index([type, created_at])
+  @@map("go_driver_wallet_transactions")
+}
+
+// =====================================================================
+// Stores (POS) — prepaid store balances that recharge driver wallets
+// =====================================================================
+
+enum GoStoreStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum GoStoreLedgerType {
+  /// Balance allocated by the company.
+  ADMIN_CREDIT
+  /// Balance consumed by a driver wallet recharge (amount = driver credit, no fee).
+  DRIVER_RECHARGE_DEBIT
+  /// Balance restored by reversing a recharge.
+  REVERSAL_CREDIT
+  /// Authorised correction with a mandatory reason; `direction` says which way.
+  ADMIN_ADJUSTMENT
+}
+
+enum GoLedgerDirection {
+  CREDIT
+  DEBIT
+}
+
+/// Authorised physical point of sale. `balance` is the single source of truth for what it can still recharge.
+model GoStore {
+  id                    String               @id @default(uuid())
+  code                  String               @unique @db.VarChar(16)
+  name                  String               @db.VarChar(120)
+  owner_name            String               @db.VarChar(120)
+  /// E.164 contact number of the owner. Not a login identifier.
+  mobile_number         String               @db.VarChar(20)
+  address               String?              @db.VarChar(300)
+  latitude              Decimal?             @db.Decimal(10, 7)
+  longitude             Decimal?             @db.Decimal(10, 7)
+  branch_id             String
+  branch                GoBranch             @relation(fields: [branch_id], references: [id])
+  status                GoStoreStatus        @default(ACTIVE)
+  status_reason         String?              @db.VarChar(300)
+  status_changed_at     DateTime?
+  /// Never negative (DB CHECK). Changes only together with a ledger row.
+  balance               Decimal              @default(0) @db.Decimal(18, 2)
+  currency              String               @default("SYP") @db.VarChar(3)
+  low_balance_threshold Decimal              @default(100000) @db.Decimal(18, 2)
+  /// Largest single recharge. Null = only the store balance limits it.
+  max_recharge_amount   Decimal?             @db.Decimal(18, 2)
+  created_by_id         String?
+  created_by            User?                @relation("StoreCreator", fields: [created_by_id], references: [id])
+  created_at            DateTime             @default(now())
+  updated_at            DateTime             @updatedAt
+  operators             User[]               @relation("StoreOperators")
+  ledger                GoStoreLedgerEntry[]
+
+  @@index([branch_id])
+  @@index([status])
+  @@index([mobile_number])
+  @@index([created_at])
+  @@map("go_stores")
+}
+
+/// Append-only store balance history (DB trigger rejects UPDATE/DELETE).
+/// A DRIVER_RECHARGE_DEBIT row *is* the POS recharge record; its wallet credit is `wallet_transaction`.
+model GoStoreLedgerEntry {
+  id                    String                     @id @default(uuid())
+  reference             String                     @unique @db.VarChar(32)
+  store_id              String
+  store                 GoStore                    @relation(fields: [store_id], references: [id], onDelete: Restrict)
+  type                  GoStoreLedgerType
+  direction             GoLedgerDirection
+  /// Always > 0 (DB CHECK); `direction` gives the sign.
+  amount                Decimal                    @db.Decimal(18, 2)
+  currency              String                     @default("SYP") @db.VarChar(3)
+  balance_before        Decimal                    @db.Decimal(18, 2)
+  balance_after         Decimal                    @db.Decimal(18, 2)
+  driver_id             String?
+  driver                GoDriverProfile?           @relation(fields: [driver_id], references: [id], onDelete: Restrict)
+  wallet_transaction_id String?                    @unique
+  wallet_transaction    GoDriverWalletTransaction? @relation(fields: [wallet_transaction_id], references: [id], onDelete: Restrict)
+  /// The recharge this row reverses. Unique: a recharge can be reversed once.
+  reversed_entry_id     String?                    @unique
+  reversed_entry        GoStoreLedgerEntry?        @relation("StoreLedgerReversal", fields: [reversed_entry_id], references: [id], onDelete: Restrict)
+  reversal              GoStoreLedgerEntry?        @relation("StoreLedgerReversal")
+  idempotency_key       String?                    @db.VarChar(128)
+  /// sha256 of the business payload, so a reused key with another driver/amount is rejected.
+  request_hash          String?                    @db.VarChar(64)
+  external_reference    String?                    @db.VarChar(80)
+  note                  String?                    @db.VarChar(500)
+  performed_by_id       String
+  performed_by          User                       @relation("StoreLedgerActor", fields: [performed_by_id], references: [id], onDelete: Restrict)
+  created_at            DateTime                   @default(now())
+
+  @@unique([store_id, idempotency_key])
+  @@index([store_id, created_at])
+  @@index([type, created_at])
+  @@index([driver_id, created_at])
+  @@map("go_store_ledger_entries")
+}
+
+model GoCustomerWallet {
+  id           String                        @id @default(uuid())
+  customer_id  String                        @unique
+  customer     GoCustomerProfile             @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  balance      Decimal                       @default(0) @db.Decimal(18, 2)
+  created_at   DateTime                      @default(now())
+  updated_at   DateTime                      @updatedAt
+  transactions GoCustomerWalletTransaction[]
+
+  @@map("go_customer_wallets")
+}
+
+model GoCustomerWalletTransaction {
+  id                     String                       @id @default(uuid())
+  wallet_id              String
+  wallet                 GoCustomerWallet             @relation(fields: [wallet_id], references: [id], onDelete: Cascade)
+  customer_id            String
+  customer               GoCustomerProfile            @relation(fields: [customer_id], references: [id])
+  ride_id                String?
+  ride                   GoRide?                      @relation(fields: [ride_id], references: [id], onDelete: SetNull)
+  type                   GoWalletTransactionType
+  amount                 Decimal                      @db.Decimal(18, 2)
+  balance_before         Decimal                      @db.Decimal(18, 2)
+  balance_after          Decimal                      @db.Decimal(18, 2)
+  reason                 String?
+  /// Pair link for TRANSFER_IN ↔ TRANSFER_OUT (and similar).
+  related_transaction_id String?
+  related_transaction    GoCustomerWalletTransaction? @relation("CustomerWalletTxPair", fields: [related_transaction_id], references: [id], onDelete: SetNull)
+  paired_transactions    GoCustomerWalletTransaction[] @relation("CustomerWalletTxPair")
+  created_by_id          String?
+  created_by             User?                        @relation("CustomerWalletActor", fields: [created_by_id], references: [id])
+  created_at             DateTime                     @default(now())
+
+  @@index([customer_id, created_at])
+  @@index([wallet_id, created_at])
+  @@index([ride_id])
+  @@index([related_transaction_id])
+  @@map("go_customer_wallet_transactions")
+}
+
+/// Recharge / voucher codes customers redeem via POST /customer/wallet/redeem.
+model GoWalletVoucher {
+  id                      String                @id @default(uuid())
+  /// Stored uppercase (e.g. ABCD-EFGH-IJKL). Unique case-insensitive via normalization.
+  code                    String                @unique @db.VarChar(32)
+  amount                  Decimal               @db.Decimal(18, 2)
+  currency                String                @default("SYP") @db.VarChar(3)
+  status                  GoWalletVoucherStatus @default(UNUSED)
+  expires_at              DateTime?
+  redeemed_by_customer_id String?
+  redeemed_by             GoCustomerProfile?    @relation(fields: [redeemed_by_customer_id], references: [id], onDelete: SetNull)
+  redeemed_at             DateTime?
+  redeemed_transaction_id String?
+  created_by_id           String
+  created_by              User                  @relation("WalletVoucherCreator", fields: [created_by_id], references: [id])
+  note                    String?               @db.VarChar(500)
+  created_at              DateTime              @default(now())
+  updated_at              DateTime              @updatedAt
+
+  @@index([status, expires_at])
+  @@index([redeemed_by_customer_id])
+  @@map("go_wallet_vouchers")
+}
+
+model GoWalletCommissionHold {
+  id              String          @id @default(uuid())
+  driver_id       String
+  driver          GoDriverProfile @relation(fields: [driver_id], references: [id], onDelete: Cascade)
+  wallet_id       String
+  wallet          GoDriverWallet  @relation(fields: [wallet_id], references: [id], onDelete: Cascade)
+  ride_id         String          @unique
+  ride            GoRide          @relation(fields: [ride_id], references: [id], onDelete: Cascade)
+  reserved_amount Decimal         @db.Decimal(18, 2)
+  released_at     DateTime?
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+
+  @@index([driver_id, released_at])
+  @@map("go_wallet_commission_holds")
+}
+
+enum GoCompensationType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum GoCompensationBearer {
+  UNASSIGNED
+  BEROYA
+  DRIVER
+  SPLIT
+}
+
+model GoRideCompensation {
+  id                     String               @id @default(uuid())
+  ride_id                String
+  ride                   GoRide               @relation(fields: [ride_id], references: [id], onDelete: Cascade)
+  type                   GoCompensationType
+  percentage             Decimal?             @db.Decimal(5, 2)
+  fixed_amount           Decimal?             @db.Decimal(18, 2)
+  applied_amount         Decimal              @db.Decimal(18, 2)
+  reason                 String
+  created_by_id          String
+  created_by             User                 @relation("CompensationCreator", fields: [created_by_id], references: [id])
+  bearer                 GoCompensationBearer @default(UNASSIGNED)
+  beroya_share           Decimal?             @db.Decimal(18, 2)
+  driver_share           Decimal?             @db.Decimal(18, 2)
+  finance_reviewed_by_id String?
+  finance_reviewed_by    User?                @relation("CompensationFinanceReviewer", fields: [finance_reviewed_by_id], references: [id])
+  finance_reviewed_at    DateTime?
+  /// Set when DRIVER/SPLIT bearer debit was posted to the driver wallet.
+  wallet_posted_at       DateTime?
+  wallet_transaction_id  String?
+  created_at             DateTime             @default(now())
+
+  @@index([ride_id])
+  @@map("go_ride_compensations")
+}
+
+// =====================================================================
+// PHASE 9 — Customer Passport / Discounts (Ticket §23–25)
+// =====================================================================
+
+enum GoPassportScoreEventType {
+  RIDE_COMPLETED
+  DRIVER_RATING_1
+  DRIVER_RATING_2
+  DRIVER_RATING_3
+  DRIVER_RATING_4
+  DRIVER_RATING_5
+  LATE_CANCELLATION
+  /// Customer cancel after driver is en route or arrived (higher penalty than late).
+  EN_ROUTE_CANCELLATION
+  NO_SHOW
+  CONFIRMED_COMPLAINT
+  STREAK_BONUS
+}
+
+enum GoDriverPassportScoreEventType {
+  RIDE_COMPLETED
+  DRIVER_CANCELLED_RIDE
+}
+
+model GoCustomerPassportLevel {
+  id                      String                   @id @default(uuid())
+  level_order             Int                      @unique
+  name_ar                 String
+  name_en                 String?
+  /// Short Arabic stamp phrase shown on the customer passport (e.g. «أنت استثنائي»).
+  stamp_name_ar           String?                  @db.VarChar(40)
+  /// English stamp phrase (optional).
+  stamp_name_en           String?                  @db.VarChar(40)
+  icon_storage_key        String?
+  minimum_score           Int
+  minimum_completed_rides Int
+  /// How long a granted stamp stays valid. 0 days + 0 hours = no expiry.
+  duration_days           Int                      @default(0)
+  duration_hours          Int                      @default(0)
+  is_active               Boolean                  @default(true)
+  created_at              DateTime                 @default(now())
+  updated_at              DateTime                 @updatedAt
+  passports               GoCustomerPassport[]
+  discount_codes          GoCustomerDiscountCode[]
+  stamps                  GoCustomerPassportStamp[]
+
+  @@map("go_customer_passport_levels")
+}
+
+model GoCustomerPassportConfig {
+  id                      String   @id @default("default")
+  initial_score           Int      @default(100)
+  minimum_score           Int      @default(-100)
+  maximum_score           Int      @default(1000)
+  review_interval_minutes Int      @default(1440)
+  updated_at              DateTime @updatedAt
+
+  @@map("go_customer_passport_config")
+}
+
+model GoCustomerPassport {
+  id               String                  @id @default(uuid())
+  customer_id      String                  @unique
+  customer         GoCustomerProfile       @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  hidden_score     Int
+  current_level_id String
+  current_level    GoCustomerPassportLevel @relation(fields: [current_level_id], references: [id])
+  completed_rides  Int                     @default(0)
+  current_streak   Int                     @default(0)
+  created_at       DateTime                @default(now())
+  updated_at       DateTime                @updatedAt
+
+  @@map("go_customer_passports")
+}
+
+/// Collected passport stamp = a level the customer has reached at least once (kept after demotion).
+model GoCustomerPassportStamp {
+  id          String                  @id @default(uuid())
+  customer_id String
+  customer    GoCustomerProfile       @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  level_id    String
+  level       GoCustomerPassportLevel @relation(fields: [level_id], references: [id], onDelete: Restrict)
+  earned_at   DateTime                @default(now())
+  /// Null = permanent. Set from the level duration when the stamp is granted.
+  expires_at  DateTime?
+
+  @@unique([customer_id, level_id])
+  @@index([customer_id, earned_at])
+  @@index([customer_id, expires_at])
+  @@map("go_customer_passport_stamps")
+}
+
+model GoPassportScoreRule {
+  id               String                   @id @default(uuid())
+  event_type       GoPassportScoreEventType
+  ride_category_id String?
+  ride_category    GoRideCategory?          @relation(fields: [ride_category_id], references: [id])
+  score_delta      Int
+  is_active        Boolean                  @default(true)
+  created_at       DateTime                 @default(now())
+  updated_at       DateTime                 @updatedAt
+
+  @@unique([event_type, ride_category_id])
+  @@map("go_passport_score_rules")
+}
+
+model GoPassportScoreLedger {
+  id           String                   @id @default(uuid())
+  customer_id  String
+  customer     GoCustomerProfile        @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  event_type   GoPassportScoreEventType
+  ride_id      String?
+  ride         GoRide?                  @relation(fields: [ride_id], references: [id])
+  delta        Int
+  score_before Int
+  score_after  Int
+  metadata     Json?
+  created_at   DateTime                 @default(now())
+
+  @@index([customer_id, created_at])
+  @@index([ride_id, event_type])
+  @@map("go_passport_score_ledger")
+}
+
+model GoPassportStreakConfig {
+  id                    String   @id @default("default")
+  milestone_every_rides Int      @default(10)
+  is_active             Boolean  @default(true)
+  updated_at            DateTime @updatedAt
+
+  @@map("go_passport_streak_config")
+}
+
+enum GoPassportRewardType {
+  SCORE
+  DISCOUNT_CODE
+  SCORE_AND_DISCOUNT
+}
+
+model GoPassportMilestoneRewardConfig {
+  id                      String               @id @default(uuid())
+  milestone_multiple      Int                  @unique
+  reward_type             GoPassportRewardType
+  score_bonus             Int?
+  discount_percentage     Decimal?             @db.Decimal(5, 2)
+  /// Hours the issued discount code stays valid (720 = 30 days).
+  discount_valid_hours    Int                  @default(720)
+  requires_admin_approval Boolean              @default(true)
+  is_active               Boolean              @default(true)
+
+  @@map("go_passport_milestone_reward_configs")
+}
+
+enum GoPassportRewardGrantStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model GoPassportRewardGrant {
+  id             String                      @id @default(uuid())
+  customer_id    String
+  customer       GoCustomerProfile           @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  streak_value   Int
+  reward_type    GoPassportRewardType
+  status         GoPassportRewardGrantStatus @default(PENDING)
+  approved_by_id String?
+  approved_by    User?                       @relation("RewardGrantApprover", fields: [approved_by_id], references: [id])
+  approved_at    DateTime?
+  created_at     DateTime                    @default(now())
+  discount_codes GoCustomerDiscountCode[]
+
+  @@index([status, created_at])
+  @@index([customer_id])
+  @@map("go_passport_reward_grants")
+}
+
+enum GoDiscountCodeStatus {
+  ACTIVE
+  INACTIVE
+  EXPIRED
+  CONSUMED
+}
+
+enum GoDiscountAudience {
+  ALL
+  CUSTOMERS
+  STAMP
+}
+
+model GoCustomerDiscountCode {
+  id                      String                       @id @default(uuid())
+  audience                GoDiscountAudience           @default(CUSTOMERS)
+  customer_id             String?
+  customer                GoCustomerProfile?           @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  passport_level_id       String?
+  passport_level          GoCustomerPassportLevel?     @relation(fields: [passport_level_id], references: [id])
+  code                    String                       @unique
+  name                    String
+  /// Optional English display name (Ticket §25).
+  name_en                 String?
+  percentage              Decimal                      @db.Decimal(5, 2)
+  maximum_discount_amount Decimal?                     @db.Decimal(18, 2)
+  valid_from              DateTime
+  expires_at              DateTime
+  /// Total uses across all customers. Null = no total cap.
+  usage_limit             Int?
+  usage_count             Int                          @default(0)
+  /// Only the first N distinct customers may use the code. Null = no cap on people.
+  max_customers           Int?
+  /// Uses allowed per customer. Null = no per-customer cap.
+  per_customer_limit      Int?
+  /// Only customers without a completed ride.
+  new_users_only          Boolean                      @default(false)
+  /// Governorate: the ride pickup must resolve to this branch.
+  branch_id               String?
+  branch                  GoBranch?                    @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  event_name              String?                      @db.VarChar(120)
+  /// GeoJSON Polygon of the event venue; the ride pickup or destination must fall inside it.
+  event_area              Json?
+  immediate_allowed       Boolean                      @default(true)
+  scheduled_allowed       Boolean                      @default(true)
+  status                  GoDiscountCodeStatus         @default(ACTIVE)
+  /// When false, the code stays hidden from GET /customer/discount-codes until the customer redeems it.
+  listed                  Boolean                      @default(true)
+  milestone_grant_id      String?
+  milestone_grant         GoPassportRewardGrant?       @relation(fields: [milestone_grant_id], references: [id])
+  created_by_id           String
+  created_by              User                         @relation(fields: [created_by_id], references: [id])
+  created_at              DateTime                     @default(now())
+  updated_at              DateTime                     @updatedAt
+  categories              GoCustomerDiscountCategory[]
+  /// Services the code covers. Empty = DAILY only.
+  services                GoDiscountCodeService[]
+  reservations            GoRideDiscountReservation[]
+  holders                 GoDiscountCodeCustomer[]
+  redemptions             GoDiscountCodeRedemption[]
+
+  @@index([customer_id, status])
+  @@index([audience, passport_level_id])
+  @@index([branch_id])
+  @@map("go_customer_discount_codes")
+}
+
+/// Account-screen activation of a typed discount code (Ticket §23). Does not consume usage.
+model GoDiscountCodeRedemption {
+  id               String                 @id @default(uuid())
+  customer_id      String
+  customer         GoCustomerProfile      @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  discount_code_id String
+  discount_code    GoCustomerDiscountCode @relation(fields: [discount_code_id], references: [id], onDelete: Cascade)
+  redeemed_at      DateTime               @default(now())
+
+  @@unique([customer_id, discount_code_id])
+  @@index([customer_id, redeemed_at])
+  @@map("go_discount_code_redemptions")
+}
+
+model GoDiscountCodeCustomer {
+  id               String                 @id @default(uuid())
+  discount_code_id String
+  discount_code    GoCustomerDiscountCode @relation(fields: [discount_code_id], references: [id], onDelete: Cascade)
+  customer_id      String
+  customer         GoCustomerProfile      @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+
+  @@unique([discount_code_id, customer_id])
+  @@map("go_discount_code_customers")
+}
+
+model GoCustomerDiscountCategory {
+  id               String                 @id @default(uuid())
+  discount_code_id String
+  discount_code    GoCustomerDiscountCode @relation(fields: [discount_code_id], references: [id], onDelete: Cascade)
+  ride_category_id String
+  ride_category    GoRideCategory         @relation(fields: [ride_category_id], references: [id])
+
+  @@unique([discount_code_id, ride_category_id])
+  @@map("go_customer_discount_categories")
+}
+
+model GoDiscountCodeService {
+  discount_code_id String
+  discount_code    GoCustomerDiscountCode @relation(fields: [discount_code_id], references: [id], onDelete: Cascade)
+  service_code     GoServiceCode
+  service          GoService              @relation(fields: [service_code], references: [code])
+
+  @@id([discount_code_id, service_code])
+  @@map("go_discount_code_services")
+}
+
+enum GoServiceCode {
+  DAILY
+  RENTAL
+  AIRPORT
+  ACCESSIBILITY
+  INTERCITY
+  TOURIST
+  FLEET
+  AMBULANCE
+}
+
+/// Service tile on the customer home. One row per code, created by migration.
+model GoService {
+  code                 GoServiceCode           @id
+  name_ar              String                  @db.VarChar(60)
+  name_en              String?                 @db.VarChar(60)
+  /// Relative file under storage/service-images. Null when no image was uploaded.
+  image_key            String?
+  /// false = shown as "coming soon".
+  is_available         Boolean                 @default(false)
+  /// false = not listed to customers at all.
+  is_visible           Boolean                 @default(true)
+  sort_order           Int                     @default(0)
+  /// Marketing badge text; shown when the customer has no discount code for the service.
+  promotion_label_ar   String?                 @db.VarChar(40)
+  /// When set with an active label: customer pays less by this %. Company absorbs — driver commission on gross.
+  promotion_percentage Decimal?                @db.Decimal(5, 2)
+  /// Null = no end date.
+  promotion_expires_at DateTime?
+  updated_at           DateTime                @updatedAt
+  discount_codes       GoDiscountCodeService[]
+  rides                GoRide[]
+
+  @@map("go_services")
+}
+
+enum GoRideDiscountReservationStatus {
+  RESERVED
+  APPLIED
+  RELEASED
+}
+
+model GoRideDiscountReservation {
+  id               String                          @id @default(uuid())
+  ride_id          String                          @unique
+  ride             GoRide                          @relation(fields: [ride_id], references: [id], onDelete: Cascade)
+  discount_code_id String
+  discount_code    GoCustomerDiscountCode          @relation(fields: [discount_code_id], references: [id])
+  status           GoRideDiscountReservationStatus @default(RESERVED)
+  reserved_at      DateTime                        @default(now())
+  applied_at       DateTime?
+  released_at      DateTime?
+
+  @@map("go_ride_discount_reservations")
+}
+
+// =====================================================================
+// PHASE 10 — Driver Passport Framework only (Ticket §27) — no score rules yet
+// =====================================================================
+
+model GoDriverPassportLevel {
+  id               String             @id @default(uuid())
+  level_order      Int                @unique
+  name_ar          String
+  name_en          String?
+  icon_storage_key String?
+  minimum_score    Int?
+  is_active        Boolean            @default(true)
+  created_at       DateTime           @default(now())
+  updated_at       DateTime           @updatedAt
+  passports        GoDriverPassport[]
+
+  @@map("go_driver_passport_levels")
+}
+
+model GoDriverPassport {
+  id               String                        @id @default(uuid())
+  driver_id        String                        @unique
+  driver           GoDriverProfile               @relation(fields: [driver_id], references: [id], onDelete: Cascade)
+  hidden_score     Int                           @default(0)
+  current_level_id String?
+  current_level    GoDriverPassportLevel?        @relation(fields: [current_level_id], references: [id])
+  completed_rides  Int                           @default(0)
+  created_at       DateTime                      @default(now())
+  updated_at       DateTime                      @updatedAt
+  score_ledger     GoDriverPassportScoreLedger[]
+
+  @@map("go_driver_passports")
+}
+
+model GoDriverPassportScoreRule {
+  id          String                         @id @default(uuid())
+  event_type  GoDriverPassportScoreEventType @unique
+  score_delta Int
+  is_active   Boolean                        @default(true)
+  created_at  DateTime                       @default(now())
+  updated_at  DateTime                       @updatedAt
+
+  @@map("go_driver_passport_score_rules")
+}
+
+model GoDriverPassportScoreLedger {
+  id           String                         @id @default(uuid())
+  driver_id    String
+  driver       GoDriverProfile                @relation(fields: [driver_id], references: [id], onDelete: Cascade)
+  passport_id  String
+  passport     GoDriverPassport               @relation(fields: [passport_id], references: [id], onDelete: Cascade)
+  event_type   GoDriverPassportScoreEventType
+  ride_id      String?
+  ride         GoRide?                        @relation(fields: [ride_id], references: [id])
+  delta        Int
+  score_before Int
+  score_after  Int
+  metadata     Json?
+  created_at   DateTime                       @default(now())
+
+  @@index([driver_id, created_at])
+  @@index([ride_id, event_type])
+  @@map("go_driver_passport_score_ledger")
+}
+
+/// HR employee file (desk «الموظفون»). All personal/contract fields optional; base_salary required.
+model GoEmployee {
+  id        String   @id @default(uuid())
+  /// Optional link to desk login User.
+  user_id   String?  @unique
+  user      User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  branch_id String?
+  branch    GoBranch? @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+
+  // Personal
+  full_name_ar       String?   @db.VarChar(200)
+  full_name_en       String?   @db.VarChar(200)
+  phone              String?   @db.VarChar(32)
+  email              String?   @db.VarChar(254)
+  date_of_birth      DateTime? @db.Date
+  gender             String?   @db.VarChar(32)
+  marital_status     String?   @db.VarChar(32)
+  national_id        String?   @db.VarChar(64)
+  nationality        String?   @db.VarChar(100)
+  blood_type         String?   @db.VarChar(16)
+  allergies          String?   @db.VarChar(500)
+  address            String?   @db.VarChar(1000)
+  emergency_contact  String?   @db.VarChar(200)
+  emergency_phone    String?   @db.VarChar(32)
+
+  // Employment / contract
+  contract_number       String?   @unique @db.VarChar(64)
+  contract_type         String?   @db.VarChar(32)
+  employment_status     String?   @db.VarChar(32)
+  start_date            DateTime? @db.Date
+  decision_date         DateTime? @db.Date
+  daily_hours           Decimal?  @db.Decimal(4, 1)
+  work_days_per_week    Int?
+  work_location         String?   @db.VarChar(300)
+  confidentiality_notes String?   @db.VarChar(4000)
+  allowances_json       Json?
+  attachments_json      Json?
+  signatures_json       Json?
+
+  // Financial — base_salary is the only required field on create
+  base_salary           Decimal  @db.Decimal(14, 2)
+  salary_currency       String   @default("SYP") @db.VarChar(8)
+  insurance_number      String?  @db.VarChar(64)
+  commissions_json      Json?
+  custody_json          Json?
+
+  // Qualifications
+  specialization       String? @db.VarChar(200)
+  university            String? @db.VarChar(200)
+  graduation_year       Int?
+  skills                String? @db.VarChar(1000)
+  certificates_json     Json?
+  languages_json        Json?
+  licenses_json         Json?
+
+  // Documents (storage keys / metadata)
+  documents_json        Json?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([branch_id, created_at])
+  @@index([full_name_ar])
+  @@map("go_employees")
+}
+
+/// Per-app white-label branding (id = customer | driver). Draft + published JSON.
+model GoAppBranding {
+  id             String   @id // customer | driver
+  version        Int      @default(1)
+  published_json Json
+  draft_json     Json
+  updated_at     DateTime @updatedAt
+
+  @@map("go_app_branding")
+}
+
+/// Per-app public info for Flutter (id = customer | driver): support, legal, force-update.
+model GoAppInfo {
+  id                     String   @id // customer | driver
+  support_phone          String?  @db.VarChar(32)
+  support_whatsapp       String?  @db.VarChar(64)
+  support_email          String?  @db.VarChar(254)
+  terms_url              String?  @db.VarChar(500)
+  privacy_url            String?  @db.VarChar(500)
+  about_ar               String?  @db.VarChar(4000)
+  min_supported_version  String   @default("1.0.0") @db.VarChar(32)
+  latest_version         String   @default("1.0.0") @db.VarChar(32)
+  updated_at             DateTime @updatedAt
+
+  @@map("go_app_info")
+}

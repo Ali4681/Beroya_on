@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "GoOtpPurpose" ADD VALUE 'DRIVER_PHONE_CHANGE';

@@ -1,0 +1,2533 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --dir: 1;
+  --brand: #22e0ee;
+  --teal: #389197;
+  --ink: #0d1017;
+  --ride-economy: #c3cad5;
+  --ride-comfort: #389197;
+  --ride-family: #eef1f5;
+  --ride-xl: #3a4150;
+  --ride-vip: #14171f;
+  --heat-1: #c6f6fa;
+  --heat-2: #7ae6f0;
+  --heat-3: #22c7d6;
+  --heat-4: #1f8d99;
+  --heat-5: #0c4d57;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --on-brand: var(--ink);
+}
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --text: #4b465c;
+  --brand-strong: #1aa8b4;
+  --success: #28c76f;
+  --warning: #ff9f43;
+  --danger: #ea5455;
+
+  --heading: color-mix(in oklab, var(--text), #000 34%);
+  --muted: color-mix(in oklab, var(--text) 80%, var(--bg));
+  --line: color-mix(in oklab, var(--text) 12%, transparent);
+  --line-strong: color-mix(in oklab, var(--text) 20%, transparent);
+  --surface-2: color-mix(in oklab, var(--bg) 55%, var(--surface));
+  --accent-text: var(--teal);
+
+  --shadow-card: 0 1px 2px rgb(31 27 45 / 0.05), 0 18px 40px -26px rgb(31 27 45 / 0.28);
+  --shadow-float: 0 2px 6px rgb(31 27 45 / 0.06), 0 30px 60px -28px rgb(31 27 45 / 0.38);
+  --shadow-glow: 0 18px 40px -16px color-mix(in oklab, var(--brand) 70%, transparent);
+
+  --map-bg: color-mix(in oklab, var(--bg), var(--text) 5%);
+  --map-block: color-mix(in oklab, var(--bg), var(--text) 9%);
+  --map-road: #ffffff;
+  --map-road-edge: color-mix(in oklab, var(--text) 9%, transparent);
+  --map-water: color-mix(in oklab, var(--brand) 26%, var(--bg));
+  --map-park: color-mix(in oklab, var(--success) 18%, var(--bg));
+
+  --stamp-teal: #2b7a80;
+  --stamp-cyan: #148f99;
+  --stamp-red: #d23f42;
+  --stamp-orange: #e07b1f;
+  --stamp-green: #1d9455;
+  --stamp-ink: #2d3a56;
+  --paper: #fbfaf5;
+  --paper-line: color-mix(in oklab, var(--teal) 14%, transparent);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d1017;
+  --surface: #151a24;
+  --text: #e7e9f2;
+  --brand-strong: #5ceaf5;
+  --success: #3dd68c;
+  --warning: #ffb156;
+  --danger: #ff6b6d;
+
+  --heading: color-mix(in oklab, var(--text), #fff 55%);
+  --muted: color-mix(in oklab, var(--text) 64%, var(--bg));
+  --line: color-mix(in oklab, var(--text) 10%, transparent);
+  --line-strong: color-mix(in oklab, var(--text) 17%, transparent);
+  --surface-2: color-mix(in oklab, var(--surface), var(--bg) 45%);
+  --accent-text: var(--brand-strong);
+
+  --shadow-card: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 24px 48px -28px rgb(0 0 0 / 0.7);
+  --shadow-float: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 36px 70px -30px rgb(0 0 0 / 0.85);
+  --shadow-glow: 0 18px 44px -14px color-mix(in oklab, var(--brand) 55%, transparent);
+
+  --map-bg: color-mix(in oklab, var(--surface), var(--bg) 35%);
+  --map-block: color-mix(in oklab, var(--surface), var(--text) 4%);
+  --map-road: color-mix(in oklab, var(--surface), var(--text) 11%);
+  --map-road-edge: transparent;
+  --map-water: color-mix(in oklab, var(--brand) 16%, var(--bg));
+  --map-park: color-mix(in oklab, var(--success) 12%, var(--bg));
+
+  --stamp-teal: #5fd0d8;
+  --stamp-cyan: #5ceaf5;
+  --stamp-red: #ff7d7f;
+  --stamp-orange: #ffb156;
+  --stamp-green: #3dd68c;
+  --stamp-ink: #c9d3ea;
+  --paper: #171d29;
+  --paper-line: color-mix(in oklab, var(--brand) 10%, transparent);
+}
+
+/* Brand and teal stay fixed. Surfaces, text, and status colors follow the theme. */
+html[data-app="desk"] {
+  --brand: #22e0ee;
+  --teal: #389197;
+  --on-brand: #0d1017;
+  --on-teal: #ffffff;
+  --teal-strong: color-mix(in oklab, var(--teal), #000 14%);
+  --accent-text: color-mix(in oklab, var(--teal), #000 12%);
+  --success-ink: color-mix(in oklab, var(--success), #000 30%);
+  --warning-ink: color-mix(in oklab, var(--warning), #000 32%);
+  --danger-ink: color-mix(in oklab, var(--danger), #000 16%);
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.05);
+  --shadow-float: 0 4px 12px -4px rgb(16 24 40 / 0.08), 0 20px 40px -12px rgb(16 24 40 / 0.2);
+  --shadow-glow: 0 1px 2px rgb(16 24 40 / 0.08), 0 4px 10px -4px color-mix(in oklab, var(--teal) 55%, transparent);
+}
+
+html[data-app="desk"][data-theme="dark"] {
+  --brand: #22e0ee;
+  --teal: #389197;
+  --on-brand: #0d1017;
+  --on-teal: #ffffff;
+  --teal-strong: color-mix(in oklab, var(--teal), #fff 10%);
+  --accent-text: var(--brand-strong);
+  --success-ink: var(--success);
+  --warning-ink: var(--warning);
+  --danger-ink: var(--danger);
+  --shadow-card: inset 0 1px 0 rgb(255 255 255 / 0.03), 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-float: 0 0 0 1px rgb(255 255 255 / 0.04), 0 24px 48px -16px rgb(0 0 0 / 0.75);
+  --shadow-glow: 0 4px 14px -6px color-mix(in oklab, var(--teal) 75%, transparent);
+}
+
+@media (min-width: 768px) {
+  html[data-app="desk"] .desk-sidebar {
+    display: flex;
+  }
+}
+
+html[data-app="desk"] .desk-shell {
+  transition: none;
+}
+
+@media (min-width: 768px) {
+  html[data-app="desk"] .desk-shell {
+    display: grid;
+    grid-template-columns: 0px minmax(0, 1fr);
+    transition: grid-template-columns 0.34s var(--ease-out);
+  }
+
+  html[data-app="desk"] .desk-shell[data-sidebar="open"] {
+    grid-template-columns: 17rem minmax(0, 1fr);
+  }
+
+  html[data-app="desk"] .desk-sidebar {
+    min-width: 0;
+    width: 100%;
+    overflow: hidden;
+    border-inline-end-width: 0;
+    opacity: 0;
+    transform: translate3d(calc(-12px * var(--dir)), 0, 0);
+    transition:
+      opacity 0.28s var(--ease-out),
+      transform 0.34s var(--ease-out),
+      border-inline-end-width 0.34s var(--ease-out);
+  }
+
+  html[data-app="desk"] .desk-shell[data-sidebar="open"] .desk-sidebar {
+    border-inline-end-width: 1px;
+    opacity: 1;
+    transform: none;
+  }
+
+  html[data-app="desk"] .desk-sidebar-inner {
+    width: 17rem;
+    min-height: 100%;
+  }
+}
+
+html[data-app="desk"] body {
+  background-color: var(--bg);
+  background-image: radial-gradient(38rem 22rem at 100% -10rem, color-mix(in oklab, var(--brand) 18%, transparent), transparent 72%);
+  background-repeat: no-repeat;
+}
+
+html[data-app="desk"]::-webkit-scrollbar-track,
+html[data-app="desk"] body::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+html[data-app="desk"]::-webkit-scrollbar-thumb,
+html[data-app="desk"] body::-webkit-scrollbar-thumb {
+  border-width: 4px;
+  background: color-mix(in oklab, var(--text) 22%, transparent) padding-box;
+}
+
+html[data-app="desk"]::-webkit-scrollbar-thumb:hover,
+html[data-app="desk"] body::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--teal) 70%, transparent) padding-box;
+}
+
+html[data-app="desk"] .desk-brand {
+  background:
+    radial-gradient(42rem 28rem at 100% 0%, color-mix(in oklab, var(--brand) 30%, transparent), transparent 65%),
+    linear-gradient(165deg, color-mix(in oklab, var(--teal), #000 18%) 0%, color-mix(in oklab, var(--teal), #000 64%) 100%);
+  color: #ffffff;
+}
+
+html[data-app="desk"] .desk-brand::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, #000, transparent 78%);
+}
+
+html[data-app="desk"] .desk-login-brand::before {
+  animation: desk-login-grid 28s linear infinite;
+}
+
+html[data-app="desk"] .desk-login-aurora {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+html[data-app="desk"] .desk-login-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(48px);
+  opacity: 0.55;
+  will-change: transform;
+}
+
+html[data-app="desk"] .desk-login-orb-a {
+  inset-inline-end: -8%;
+  top: 8%;
+  width: 22rem;
+  height: 22rem;
+  background: color-mix(in oklab, var(--brand) 55%, transparent);
+  animation: desk-login-drift 16s var(--ease-out) infinite alternate;
+}
+
+html[data-app="desk"] .desk-login-orb-b {
+  inset-inline-start: -12%;
+  bottom: 12%;
+  width: 26rem;
+  height: 26rem;
+  background: color-mix(in oklab, #0b3d42 70%, transparent);
+  animation: desk-login-drift 22s var(--ease-out) infinite alternate-reverse;
+}
+
+html[data-app="desk"] .desk-login-orb-c {
+  inset-inline-end: 18%;
+  bottom: 28%;
+  width: 12rem;
+  height: 12rem;
+  background: color-mix(in oklab, var(--brand-strong) 35%, transparent);
+  animation: desk-login-pulse 7s ease-in-out infinite;
+}
+
+html[data-app="desk"] .desk-login-routes {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.55;
+}
+
+html[data-app="desk"] .desk-login-route {
+  fill: none;
+  stroke: rgb(255 255 255 / 0.28);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-dasharray: 8 14;
+  animation: desk-login-dash 18s linear infinite;
+}
+
+html[data-app="desk"] .desk-login-route-b {
+  stroke: color-mix(in oklab, var(--brand) 55%, white);
+  stroke-opacity: 0.45;
+  animation-duration: 24s;
+  animation-direction: reverse;
+}
+
+html[data-app="desk"] .desk-login-node {
+  fill: var(--brand);
+  filter: drop-shadow(0 0 10px color-mix(in oklab, var(--brand) 70%, transparent));
+  animation: desk-login-node 2.8s ease-in-out infinite;
+}
+
+html[data-app="desk"] .desk-login-node-delay {
+  animation-delay: 0.7s;
+}
+
+html[data-app="desk"] .desk-login-node-soft {
+  fill: rgb(255 255 255 / 0.85);
+  animation-delay: 1.3s;
+}
+
+html[data-app="desk"] .desk-login-stage {
+  background:
+    radial-gradient(32rem 22rem at 50% 0%, color-mix(in oklab, var(--brand) 10%, transparent), transparent 70%),
+    var(--bg);
+}
+
+html[data-app="desk"] .desk-login-stage-glow {
+  position: absolute;
+  inset-inline: 12%;
+  top: 18%;
+  height: 42%;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, color-mix(in oklab, var(--teal) 14%, transparent), transparent 72%);
+  filter: blur(8px);
+}
+
+html[data-app="desk"] .desk-login-card {
+  border: 1px solid color-mix(in oklab, var(--line-strong) 80%, var(--brand));
+  border-radius: 1.35rem;
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--surface) 92%, white), var(--surface));
+  box-shadow:
+    var(--shadow-float),
+    0 0 0 1px color-mix(in oklab, var(--brand) 8%, transparent),
+    0 40px 80px -48px color-mix(in oklab, var(--teal) 45%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+html[data-app="desk"][data-theme="dark"] .desk-login-card {
+  background:
+    linear-gradient(165deg, color-mix(in oklab, var(--surface) 88%, white), color-mix(in oklab, var(--surface), #000 18%));
+  border-color: color-mix(in oklab, var(--line) 70%, var(--brand));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    0 28px 60px -28px rgb(0 0 0 / 0.8),
+    0 0 0 1px color-mix(in oklab, var(--brand) 12%, transparent);
+}
+
+html[data-app="desk"] .desk-login-support {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.15rem;
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in oklab, var(--line) 85%, transparent);
+  text-align: center;
+}
+
+html[data-app="desk"] .desk-login-support-title {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+html[data-app="desk"] .desk-login-support-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem 0.85rem;
+}
+
+html[data-app="desk"] .desk-login-support-link {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--accent);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-decoration: none;
+  transition: color 160ms var(--ease-out);
+}
+
+html[data-app="desk"] .desk-login-support-link:hover {
+  color: var(--brand-strong, var(--teal-strong));
+}
+
+html[data-app="desk"] .desk-login-support-link .desk-ltr-num {
+  width: auto;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+html[data-app="desk"] .desk-login-submit {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+html[data-app="desk"] .desk-login-submit::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 20%, rgb(255 255 255 / 0.28) 48%, transparent 72%);
+  transform: translateX(-130%);
+  animation: desk-login-sheen 4.8s var(--ease-out) infinite;
+}
+
+html[data-app="desk"] .desk-login-reveal {
+  animation: desk-login-rise 0.72s var(--ease-out) both;
+  animation-delay: var(--desk-login-delay, 0ms);
+}
+
+@keyframes desk-login-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes desk-login-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(-4%, 6%, 0) scale(1.08);
+  }
+}
+
+@keyframes desk-login-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes desk-login-grid {
+  from {
+    background-position: 0 0, 0 0;
+  }
+  to {
+    background-position: 44px 22px, 22px 44px;
+  }
+}
+
+@keyframes desk-login-dash {
+  to {
+    stroke-dashoffset: -220;
+  }
+}
+
+@keyframes desk-login-node {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes desk-login-sheen {
+  0%,
+  55% {
+    transform: translateX(-130%);
+  }
+  75%,
+  100% {
+    transform: translateX(130%);
+  }
+}
+
+html[data-app="desk"] .desk-recording-player {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem 1.05rem;
+  border-radius: 1.1rem;
+  border: 1px solid color-mix(in oklab, var(--line-strong) 75%, var(--brand));
+  background:
+    radial-gradient(18rem 10rem at 100% 0%, color-mix(in oklab, var(--brand) 14%, transparent), transparent 70%),
+    linear-gradient(165deg, color-mix(in oklab, var(--surface) 92%, white), var(--surface));
+  box-shadow: var(--shadow-card);
+}
+
+html[data-app="desk"][data-theme="dark"] .desk-recording-player {
+  background:
+    radial-gradient(18rem 10rem at 100% 0%, color-mix(in oklab, var(--brand) 12%, transparent), transparent 70%),
+    linear-gradient(165deg, color-mix(in oklab, var(--surface) 88%, white), color-mix(in oklab, var(--surface), #000 16%));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04), var(--shadow-card);
+}
+
+html[data-app="desk"] .desk-recording-player--idle {
+  place-items: stretch;
+}
+
+html[data-app="desk"] .desk-recording-wave {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.18rem;
+  height: 2.4rem;
+  padding-inline: 0.1rem;
+}
+
+html[data-app="desk"] .desk-recording-wave > span {
+  flex: 1 1 0;
+  min-width: 0.18rem;
+  max-width: 0.34rem;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--brand) 55%, var(--muted));
+  opacity: 0.45;
+  height: var(--desk-wave-h, 48%);
+  transform-origin: center bottom;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+}
+
+html[data-app="desk"] .desk-recording-player.is-playing .desk-recording-wave > span {
+  opacity: 0.95;
+  background: linear-gradient(to top, var(--teal), var(--brand));
+  animation: desk-recording-wave 1.05s ease-in-out infinite;
+  animation-delay: calc(var(--desk-wave-i) * 45ms);
+}
+
+html[data-app="desk"] .desk-recording-player--idle .desk-recording-wave > span {
+  opacity: 0.28;
+}
+
+html[data-app="desk"] .desk-recording-seek {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 0.4rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  background:
+    linear-gradient(
+      to right,
+      var(--teal) 0%,
+      var(--brand) var(--desk-seek, 0%),
+      color-mix(in oklab, var(--heading) 12%, transparent) var(--desk-seek, 0%)
+    );
+  outline: none;
+}
+
+html[data-app="desk"] .desk-recording-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 9999px;
+  background: var(--brand);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 28%, transparent);
+}
+
+html[data-app="desk"] .desk-recording-seek::-moz-range-thumb {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 9999px;
+  background: var(--brand);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 28%, transparent);
+}
+
+html[data-app="desk"] .desk-recording-seek:focus-visible {
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--brand) 22%, transparent);
+}
+
+@keyframes desk-recording-wave {
+  0%,
+  100% {
+    transform: scaleY(0.45);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-app="desk"] .desk-recording-player.is-playing .desk-recording-wave > span {
+    animation: none;
+  }
+}
+
+html[data-app="desk"] .leaflet-container {
+  direction: ltr;
+  background: var(--map-bg);
+  font-family: var(--font-sans);
+}
+
+html[data-app="desk"] .leaflet-bar {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-card);
+}
+
+html[data-app="desk"] .leaflet-bar a {
+  background: var(--surface);
+  color: var(--heading);
+  border-bottom-color: var(--line);
+}
+
+html[data-app="desk"] .leaflet-bar a:hover,
+html[data-app="desk"] .leaflet-bar a:focus {
+  background: var(--surface-2);
+}
+
+html[data-app="desk"] .leaflet-control-attribution {
+  background: color-mix(in oklab, var(--surface) 85%, transparent);
+  color: var(--muted);
+}
+
+html[data-app="desk"] .leaflet-control-attribution a {
+  color: var(--accent-text);
+}
+
+/* OpenStreetMap only ships light tiles. */
+html[data-app="desk"][data-theme="dark"] .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9) saturate(0.6);
+}
+
+html[data-app="desk"] .desk-page {
+  animation: desk-page 0.28s var(--ease-out) both;
+}
+
+html[data-app="desk"] .desk-drawer {
+  transition:
+    transform 0.32s var(--ease-out),
+    opacity 0.24s ease;
+  transform: translate3d(calc(-100% * var(--dir)), 0, 0);
+  opacity: 0;
+}
+
+html[data-app="desk"] .desk-drawer[data-open="true"] {
+  transform: none;
+  opacity: 1;
+}
+
+html[data-app="desk"] .desk-scrim {
+  transition: opacity 0.24s ease;
+  opacity: 0;
+}
+
+html[data-app="desk"] .desk-scrim[data-open="true"] {
+  opacity: 1;
+}
+
+html[data-app="desk"] .desk-fade {
+  animation: desk-fade 0.2s ease both;
+}
+
+html[data-app="desk"] .desk-pop {
+  animation: desk-pop 0.16s var(--ease-out) both;
+}
+
+html[data-app="desk"] .desk-toast {
+  animation: desk-toast 0.3s var(--ease-out) both;
+}
+
+html[data-app="desk"] :is(
+  a[href],
+  button,
+  summary,
+  select,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="option"],
+  label:has(input[type="checkbox"]),
+  label:has(input[type="radio"]),
+  label:has(input[type="file"]),
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="file"]::file-selector-button
+) {
+  cursor: pointer;
+}
+
+html[data-app="desk"] :is(button:disabled, select:disabled, input:disabled, textarea:disabled, [aria-disabled="true"]) {
+  cursor: not-allowed;
+}
+
+html[data-app="desk"] button[data-loading="true"] {
+  cursor: wait;
+}
+
+html[data-app="desk"] button[data-loading="true"]::before {
+  content: "";
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: none;
+  border-radius: 9999px;
+  border: 2px solid color-mix(in oklab, currentColor 28%, transparent);
+  border-top-color: currentColor;
+  animation: desk-spin 0.7s linear infinite;
+}
+
+@keyframes desk-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes desk-page {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes desk-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes desk-pop {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -4px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes desk-toast {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-app="desk"] .desk-page,
+  html[data-app="desk"] .desk-fade,
+  html[data-app="desk"] .desk-pop,
+  html[data-app="desk"] .desk-toast,
+  html[data-app="desk"] button[data-loading="true"]::before,
+  html[data-app="desk"] .desk-login-brand::before,
+  html[data-app="desk"] .desk-login-orb,
+  html[data-app="desk"] .desk-login-route,
+  html[data-app="desk"] .desk-login-node,
+  html[data-app="desk"] .desk-login-submit::after,
+  html[data-app="desk"] .desk-login-reveal {
+    animation: none;
+  }
+
+  html[data-app="desk"] .desk-shell,
+  html[data-app="desk"] .desk-sidebar,
+  html[data-app="desk"] .desk-drawer,
+  html[data-app="desk"] .desk-scrim {
+    transition: none !important;
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-body: var(--text);
+  --color-heading: var(--heading);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-accent: var(--accent-text);
+  --color-teal: var(--teal);
+  --color-ink: var(--ink);
+  --color-on-brand: var(--on-brand);
+  --color-on-teal: var(--on-teal);
+  --color-teal-strong: var(--teal-strong);
+  --color-success-ink: var(--success-ink);
+  --color-warning-ink: var(--warning-ink);
+  --color-danger-ink: var(--danger-ink);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+
+  --font-sans: var(--font-desk, var(--font-readex)), ui-sans-serif, system-ui, sans-serif;
+
+  --shadow-card: var(--shadow-card);
+  --shadow-float: var(--shadow-float);
+  --shadow-glow: var(--shadow-glow);
+
+  --ease-out-soft: var(--ease-out);
+  --ease-spring: var(--ease-spring);
+}
+
+@theme {
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-float-slow: float 9s ease-in-out infinite;
+  --animate-rise: rise 0.9s var(--ease-out) both;
+  --animate-pulse-ring: pulse-ring 2.6s var(--ease-out) infinite;
+  --animate-spin-slow: spin 14s linear infinite;
+  --animate-dash: dash 1.4s linear infinite;
+  --animate-blink: blink 1.6s ease-in-out infinite;
+  --animate-sheen: sheen 4.8s var(--ease-out) infinite;
+  --animate-flame: flame 1.8s ease-in-out infinite;
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0);
+    }
+    50% {
+      transform: translate3d(0, -10px, 0);
+    }
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 26px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes pulse-ring {
+    0% {
+      opacity: 0.55;
+      transform: scale(0.6);
+    }
+    80%,
+    100% {
+      opacity: 0;
+      transform: scale(2.4);
+    }
+  }
+
+  @keyframes dash {
+    to {
+      stroke-dashoffset: -28;
+    }
+  }
+
+  @keyframes blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+
+  @keyframes sheen {
+    0% {
+      transform: translateX(-120%) skewX(-18deg);
+    }
+    55%,
+    100% {
+      transform: translateX(220%) skewX(-18deg);
+    }
+  }
+
+  @keyframes flame {
+    0%,
+    100% {
+      transform: scale(1) rotate(-2deg);
+    }
+    50% {
+      transform: scale(1.08) rotate(2deg);
+    }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  /* Readex Pro draws 0–9 as Arabic-Indic digits when lang is ar. Keep Western digits. */
+  html[lang="ar"] {
+    font-feature-settings: "locl" 0;
+  }
+
+  /* Chromium drops ::-webkit-scrollbar styling once the standard properties are set, so only Firefox gets them. */
+  @supports not selector(::-webkit-scrollbar) {
+    html {
+      scrollbar-width: thin;
+      scrollbar-color: color-mix(in oklab, var(--teal) 82%, var(--bg)) transparent;
+    }
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-button {
+    display: none;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--text) 26%, transparent) padding-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--text) 40%, transparent) padding-box;
+  }
+
+  /* The page scrollbar takes its style from <body> first, then <html>. */
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    width: 14px;
+  }
+
+  html::-webkit-scrollbar-track,
+  body::-webkit-scrollbar-track {
+    background:
+      linear-gradient(var(--line), var(--line)) center / 1px 100% no-repeat,
+      var(--bg);
+  }
+
+  html::-webkit-scrollbar-thumb,
+  body::-webkit-scrollbar-thumb {
+    min-height: 72px;
+    border-width: 4px;
+    background: linear-gradient(
+        to bottom,
+        color-mix(in oklab, var(--teal) 82%, var(--bg)),
+        color-mix(in oklab, var(--brand) 82%, var(--bg))
+      )
+      padding-box;
+  }
+
+  html::-webkit-scrollbar-thumb:hover,
+  html::-webkit-scrollbar-thumb:active,
+  body::-webkit-scrollbar-thumb:hover,
+  body::-webkit-scrollbar-thumb:active {
+    border-width: 3px;
+    background: linear-gradient(to bottom, var(--teal), var(--brand)) padding-box;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--brand) 38%, transparent);
+    color: var(--heading);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 3px;
+  }
+
+  /* Targets of in-page links take focus so the next Tab goes on from there (in-page-links.ts). */
+  [tabindex="-1"]:focus-visible {
+    outline: none;
+  }
+
+  section[id],
+  [data-anchor] {
+    scroll-margin-top: 88px;
+  }
+
+  svg text {
+    font-family: var(--font-sans);
+  }
+}
+
+@utility shell {
+  width: 100%;
+  max-width: 78rem;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+
+  @media (width >= 48rem) {
+    padding-inline: 2rem;
+  }
+}
+
+@utility text-gradient {
+  background-image: linear-gradient(
+    100deg,
+    var(--teal) 0%,
+    var(--brand-strong) 55%,
+    color-mix(in oklab, var(--brand) 65%, var(--brand-strong)) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+
+  [data-theme="dark"] & {
+    background-image: linear-gradient(100deg, var(--brand) 0%, var(--brand-strong) 50%, #c4fbff 100%);
+  }
+}
+
+@utility glass {
+  background: color-mix(in oklab, var(--surface) 74%, transparent);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(18px) saturate(1.4);
+}
+
+@utility grid-fade {
+  background-image:
+    linear-gradient(to right, var(--line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 80%);
+}
+
+@utility paper {
+  background-color: var(--paper);
+  background-image:
+    repeating-radial-gradient(circle at 100% 0%, transparent 0 15px, var(--paper-line) 15px 16px),
+    repeating-radial-gradient(circle at 0% 100%, transparent 0 15px, var(--paper-line) 15px 16px);
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Horizontal strips that must stay swipeable on mobile (iOS especially). */
+@utility h-scroll {
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  /* Allow both strip panning and vertical page scroll when the touch starts on the strip. */
+  touch-action: pan-x pan-y;
+  scrollbar-width: none;
+
+  @media (hover: hover) and (pointer: fine) {
+    cursor: grab;
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@layer components {
+  .ui-tooltip {
+    --tip-bg: #171b24;
+    --tip-fg: #f6f8fb;
+    position: fixed;
+    z-index: 120;
+    width: max-content;
+    max-width: min(18rem, calc(100vw - 1.25rem));
+    pointer-events: none;
+    filter:
+      drop-shadow(0 1px 1px rgb(13 16 23 / 0.08))
+      drop-shadow(0 14px 28px rgb(13 16 23 / 0.24));
+  }
+
+  .ui-tooltip:not([data-placed]) {
+    visibility: hidden;
+  }
+
+  [data-theme="dark"] .ui-tooltip {
+    --tip-bg: #f4f6fb;
+    --tip-fg: #141820;
+    filter:
+      drop-shadow(0 1px 1px rgb(0 0 0 / 0.2))
+      drop-shadow(0 16px 34px rgb(0 0 0 / 0.42));
+  }
+
+  .ui-tooltip-surface {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    max-width: min(18rem, calc(100vw - 1.25rem));
+    padding-block: 0.42rem;
+    padding-inline: 0.5rem 0.72rem;
+    border-radius: 0.7rem;
+    background: var(--tip-bg);
+    color: var(--tip-fg);
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.45;
+    letter-spacing: -0.011em;
+  }
+
+  .ui-tooltip-surface[data-detail="true"] {
+    align-items: flex-start;
+    max-width: min(17.5rem, calc(100vw - 1.25rem));
+    padding-block: 0.5rem;
+  }
+
+  .ui-tooltip-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.12rem;
+  }
+
+  .ui-tooltip-label {
+    min-width: 0;
+  }
+
+  .ui-tooltip-detail {
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1.4;
+    opacity: 0.82;
+  }
+
+  .passport-stamp-pin {
+    pointer-events: auto;
+    transform: rotate(var(--stamp-rot, 0deg)) scale(1);
+    transform-origin: center center;
+    transition:
+      transform 220ms var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+      box-shadow 220ms ease,
+      z-index 0ms;
+  }
+
+  .passport-stamp-art {
+    filter: none;
+    box-shadow: 0 8px 16px rgb(13 16 23 / 0.14);
+  }
+
+  .passport-stamp-pin:hover,
+  .passport-stamp-pin:focus-within,
+  .passport-stamp-pin:has([data-open="true"]) {
+    z-index: 40 !important;
+    transform: rotate(var(--stamp-rot, 0deg)) scale(1.1) translateY(-0.4rem);
+  }
+
+  .passport-stamp-pin:hover .passport-stamp-art,
+  .passport-stamp-pin:focus-within .passport-stamp-art,
+  .passport-stamp-pin:has([data-open="true"]) .passport-stamp-art {
+    box-shadow: 0 14px 22px rgb(13 16 23 / 0.22);
+  }
+
+  .passport-stamp-hit {
+    border-radius: 999px;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    position: relative;
+    z-index: 5;
+    pointer-events: auto !important;
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Guarantees event.target is the <button> so StPageFlip clickEventForward skips it. */
+  .passport-stamp-hit * {
+    pointer-events: none !important;
+  }
+
+  .passport-stamp-tip {
+    --tip-bg: #171b24;
+    --tip-fg: #f6f8fb;
+    position: fixed;
+    z-index: 2147483646;
+    width: max-content;
+    max-width: min(16.5rem, calc(100vw - 1.25rem));
+    pointer-events: none;
+    opacity: 1;
+    visibility: visible;
+    filter:
+      drop-shadow(0 1px 1px rgb(13 16 23 / 0.08))
+      drop-shadow(0 14px 28px rgb(13 16 23 / 0.24));
+  }
+
+  /* Mobile: full-width sheet so stamp info cannot render off-screen / behind layers. */
+  .passport-stamp-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483646;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 1rem;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    pointer-events: auto;
+  }
+
+  .passport-stamp-sheet-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    margin: 0;
+    padding: 0;
+    cursor: pointer;
+    background: rgb(8 12 18 / 0.52);
+  }
+
+  .passport-stamp-sheet-card {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    width: min(26rem, 100%);
+    align-items: flex-start;
+    gap: 0.65rem;
+    padding: 1rem 1rem 0.9rem;
+    border-radius: 1.1rem;
+    background: var(--tip-bg, #171b24);
+    color: var(--tip-fg, #f6f8fb);
+    box-shadow:
+      0 1px 1px rgb(13 16 23 / 0.08),
+      0 22px 48px rgb(13 16 23 / 0.38);
+    animation: passport-stamp-sheet-in 220ms var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)) both;
+  }
+
+  [data-theme="dark"] .passport-stamp-sheet-card {
+    --tip-bg: #f4f6fb;
+    --tip-fg: #141820;
+  }
+
+  .passport-stamp-sheet-card .passport-stamp-tip-label {
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+
+  .passport-stamp-sheet-card .passport-stamp-tip-detail {
+    margin-top: 0.2rem;
+    font-size: 0.92rem;
+    font-weight: 500;
+    line-height: 1.45;
+    opacity: 0.88;
+  }
+
+  .passport-stamp-sheet-close {
+    flex: none;
+    margin-inline-start: auto;
+    align-self: center;
+    border: 0;
+    border-radius: 999px;
+    padding: 0.45rem 0.85rem;
+    background: color-mix(in oklab, var(--brand, #22e0ee) 22%, transparent);
+    color: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  @keyframes passport-stamp-sheet-in {
+    from {
+      opacity: 0;
+      transform: translateY(1rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  [data-theme="dark"] .passport-stamp-tip {
+    --tip-bg: #f4f6fb;
+    --tip-fg: #141820;
+    filter:
+      drop-shadow(0 1px 1px rgb(0 0 0 / 0.2))
+      drop-shadow(0 16px 34px rgb(0 0 0 / 0.42));
+  }
+
+  .passport-stamp-tip-surface {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    max-width: min(16.5rem, calc(100vw - 1.25rem));
+    padding-block: 0.5rem;
+    padding-inline: 0.5rem 0.72rem;
+    border-radius: 0.7rem;
+    background: var(--tip-bg);
+    color: var(--tip-fg);
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.45;
+    letter-spacing: -0.011em;
+  }
+
+  .passport-stamp-tip-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .passport-stamp-tip-detail {
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1.4;
+    opacity: 0.82;
+  }
+
+  .passport-stamp-tip-mark {
+    width: 0.38rem;
+    height: 0.38rem;
+    flex: none;
+    margin-block: 0.35rem;
+    border-radius: 999px;
+    background: var(--brand, #22e0ee);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand, #22e0ee) 26%, transparent);
+  }
+
+  .passport-stamp-tip-arrow {
+    position: absolute;
+    left: var(--arrow);
+    width: 11px;
+    height: 6px;
+    background: var(--tip-bg);
+    transform: translateX(-50%);
+  }
+
+  .passport-stamp-tip[data-side="bottom"] .passport-stamp-tip-arrow {
+    top: -5px;
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  }
+
+  .passport-stamp-tip[data-side="top"] .passport-stamp-tip-arrow {
+    bottom: -5px;
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+  }
+
+  .passport-stamp-tip[data-placed] {
+    animation: passport-stamp-tip-in 180ms var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)) both;
+  }
+
+  .passport-stamp-tip[data-placed][data-side="top"] {
+    animation-name: passport-stamp-tip-in-top;
+  }
+
+  @keyframes passport-stamp-tip-in {
+    from {
+      opacity: 0;
+      transform: translateY(5px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes passport-stamp-tip-in-top {
+    from {
+      opacity: 0;
+      transform: translateY(-5px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @media (hover: none) {
+    .passport-stamp-pin {
+      animation: passport-stamp-nudge 2.8s ease-in-out infinite;
+    }
+
+    .passport-stamp-pin:nth-child(2) {
+      animation-delay: 0.35s;
+    }
+
+    .passport-stamp-pin:nth-child(3) {
+      animation-delay: 0.7s;
+    }
+
+    .passport-stamp-pin:nth-child(4) {
+      animation-delay: 1.05s;
+    }
+
+    .passport-stamp-pin:nth-child(5) {
+      animation-delay: 1.4s;
+    }
+
+    .passport-stamp-pin:has([data-open="true"]),
+    .passport-stamp-pin:focus-within {
+      animation: none;
+    }
+
+    /* Pause infinite stamp motion while the page is curling — keeps flip at 60fps. */
+    .passport-stf[data-flipping="true"] .passport-stamp-pin {
+      animation: none !important;
+    }
+
+    .passport-stf[data-flipping="true"] .passport-stamp-art {
+      box-shadow: 0 4px 10px rgb(13 16 23 / 0.1);
+    }
+  }
+
+  @keyframes passport-stamp-nudge {
+    0%,
+    70%,
+    100% {
+      transform: rotate(var(--stamp-rot, 0deg)) scale(1);
+    }
+    85% {
+      transform: rotate(var(--stamp-rot, 0deg)) scale(1.04);
+    }
+  }
+
+  .ui-tooltip-mark {
+    width: 0.38rem;
+    height: 0.38rem;
+    flex: none;
+    border-radius: 999px;
+    background: var(--brand);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 26%, transparent);
+  }
+
+  .ui-tooltip-arrow {
+    position: absolute;
+    left: var(--arrow);
+    width: 11px;
+    height: 6px;
+    background: var(--tip-bg);
+    transform: translateX(-50%);
+  }
+
+  .ui-tooltip[data-side="bottom"] .ui-tooltip-arrow {
+    top: -5px;
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  }
+
+  .ui-tooltip[data-side="top"] .ui-tooltip-arrow {
+    bottom: -5px;
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+  }
+
+  .ui-tooltip[data-placed] {
+    animation: ui-tooltip-in 180ms var(--ease-out) both;
+  }
+
+  .ui-tooltip[data-placed][data-side="top"] {
+    animation-name: ui-tooltip-in-top;
+  }
+
+  @keyframes ui-tooltip-in {
+    from {
+      opacity: 0;
+      transform: translateY(5px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes ui-tooltip-in-top {
+    from {
+      opacity: 0;
+      transform: translateY(-5px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .phone {
+    position: relative;
+    flex: none;
+    /* Scale via width — CSS zoom on descendants breaks iOS overflow-x swipe. */
+    width: calc(300px * var(--phone-zoom, 1));
+    aspect-ratio: 300 / 624;
+    padding: calc(9px * var(--phone-zoom, 1));
+    border-radius: calc(50px * var(--phone-zoom, 1));
+    background: linear-gradient(150deg, #474e5c 0%, #171a22 30%, #0b0d12 68%, #353b47 100%);
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.16),
+      inset 0 0 0 3px #090b10,
+      0 2px 4px rgb(13 16 23 / 0.18),
+      0 44px 90px -34px rgb(13 16 23 / 0.55),
+      0 30px 60px -40px color-mix(in oklab, var(--teal) 70%, transparent);
+  }
+
+  .phone::before,
+  .phone::after {
+    content: "";
+    position: absolute;
+    inset-inline-end: calc(-2px * var(--phone-zoom, 1));
+    width: calc(3px * var(--phone-zoom, 1));
+    border-radius: calc(3px * var(--phone-zoom, 1));
+    background: #2a2f3a;
+  }
+
+  .phone::before {
+    top: calc(120px * var(--phone-zoom, 1));
+    height: calc(64px * var(--phone-zoom, 1));
+  }
+
+  .phone::after {
+    top: calc(196px * var(--phone-zoom, 1));
+    height: calc(40px * var(--phone-zoom, 1));
+  }
+
+  .phone-screen {
+    position: relative;
+    height: 100%;
+    overflow: hidden;
+    isolation: isolate;
+    border-radius: calc(41px * var(--phone-zoom, 1));
+    background: var(--bg);
+    color: var(--text);
+    font-size: calc(12px * var(--phone-zoom, 1));
+    line-height: 1.5;
+  }
+
+  .phone-island {
+    position: absolute;
+    top: calc(10px * var(--phone-zoom, 1));
+    left: 50%;
+    z-index: 40;
+    width: calc(90px * var(--phone-zoom, 1));
+    height: calc(26px * var(--phone-zoom, 1));
+    translate: -50% 0;
+    border-radius: 999px;
+    background: #04050a;
+  }
+
+  .screen-layer {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    visibility: hidden;
+    transform: translate3d(0, 14px, 0) scale(0.985);
+    transition:
+      opacity 0.6s var(--ease-out),
+      transform 0.7s var(--ease-out),
+      visibility 0s linear 0.6s;
+  }
+
+  .screen-layer[data-active] {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    transition:
+      opacity 0.6s var(--ease-out),
+      transform 0.7s var(--ease-out),
+      visibility 0s;
+  }
+
+  .card {
+    border: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: var(--shadow-card);
+  }
+
+  .eyebrow-dot {
+    position: relative;
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--brand);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--brand) 22%, transparent);
+  }
+
+  .route-draw {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+
+  .wheel-spin {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  .group:hover .wheel-spin {
+    animation: spin 0.9s linear infinite;
+  }
+
+  .car-drive {
+    transition: translate 0.7s var(--ease-out);
+  }
+
+  .group:hover .car-drive {
+    translate: 10px 0;
+  }
+
+  .sheen-overlay {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: inherit;
+  }
+
+  .sheen-overlay::after {
+    content: "";
+    position: absolute;
+    inset-block: -20%;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.12), transparent);
+    animation: var(--animate-sheen);
+  }
+
+  .typing-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: currentColor;
+    animation: typing 1.2s ease-in-out infinite;
+  }
+
+  .typing-dot:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+
+  .typing-dot:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+
+  .radar-sweep {
+    background: conic-gradient(
+      from 0deg,
+      color-mix(in oklab, var(--brand) 45%, transparent),
+      transparent 28%
+    );
+    animation: spin 2.8s linear infinite;
+  }
+
+  .offer-card {
+    animation: offer-cycle 9s var(--ease-out) infinite;
+  }
+
+  .offer-ring {
+    stroke-dasharray: 1;
+    animation: offer-ring 9s linear infinite;
+  }
+
+  .ticket-notch {
+    mask:
+      radial-gradient(circle 12px at 0 50%, transparent 98%, #000) left / 51% 100% no-repeat,
+      radial-gradient(circle 12px at 100% 50%, transparent 98%, #000) right / 51% 100% no-repeat;
+  }
+
+  .progress-fill {
+    transform-origin: left;
+    animation: progress var(--duration, 4s) linear forwards;
+  }
+
+  [dir="rtl"] .progress-fill {
+    transform-origin: right;
+  }
+
+  .convoy-car {
+    opacity: 0;
+    translate: -60px 0;
+  }
+
+  [dir="rtl"] .convoy-car {
+    translate: 60px 0;
+  }
+
+  [data-shown] .convoy-car,
+  html:not(.js) .convoy-car {
+    opacity: 1;
+    translate: 0 0;
+    transition:
+      opacity 0.9s var(--ease-out),
+      translate 1.2s var(--ease-out);
+    transition-delay: var(--delay, 0ms);
+  }
+
+  .stamp-press {
+    animation: stamp-press 0.75s var(--ease-spring) both;
+    animation-delay: var(--delay, 0ms);
+  }
+
+  .js [data-reveal]:not([data-shown]) .stamp-press {
+    animation: none;
+    opacity: 0;
+  }
+
+  [data-shown] .route-draw,
+  .route-draw-now {
+    animation: route-draw 2.2s var(--ease-out) forwards;
+    animation-delay: var(--delay, 0ms);
+  }
+
+  html:not(.js) .route-draw {
+    stroke-dashoffset: 0;
+  }
+
+  .stagger-in {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+
+  [data-shown] .stagger-in,
+  html:not(.js) .stagger-in {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity 0.6s var(--ease-out),
+      transform 0.6s var(--ease-out);
+    transition-delay: var(--delay, 0ms);
+  }
+
+  .line-grow {
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+
+  [dir="rtl"] .line-grow {
+    transform-origin: right;
+  }
+
+  [data-shown] .line-grow,
+  html:not(.js) .line-grow {
+    transform: scaleX(1);
+    transition: transform 1.6s var(--ease-out) 0.3s;
+  }
+
+  .seg-slide {
+    transition: translate 0.7s var(--ease-spring) 0.6s;
+  }
+
+  [data-shown] .seg-slide,
+  html:not(.js) .seg-slide {
+    translate: calc(100% * var(--dir)) 0;
+  }
+
+  .status-step {
+    animation: status-step 12s infinite both;
+    animation-delay: calc(var(--i, 0) * 3s - 12s);
+  }
+
+  .ripple {
+    animation: ripple 3.6s var(--ease-out) infinite;
+    animation-delay: var(--delay, 0ms);
+  }
+
+  .drive-across {
+    animation: drive-across 11s linear infinite;
+  }
+
+  .drive-across .wheel-spin {
+    animation: spin 0.8s linear infinite;
+  }
+
+  .pop-in {
+    animation: pop-in 0.7s var(--ease-spring) both;
+    animation-delay: var(--delay, 0ms);
+  }
+
+  .indeterminate {
+    animation: indeterminate 1.7s var(--ease-out) infinite;
+  }
+
+  .faq-panel {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.45s var(--ease-out);
+  }
+
+  .faq-panel[data-open] {
+    grid-template-rows: 1fr;
+  }
+
+  /* Only shows up if the switch takes long enough to notice. */
+  .locale-busy-label {
+    animation: locale-busy-label 0.2s ease-out 0.12s both;
+  }
+
+  .locale-busy-spinner {
+    position: absolute;
+    inset: 0;
+    width: 16px;
+    height: 16px;
+    margin: auto;
+    border: 2px solid color-mix(in oklab, var(--brand-strong) 26%, transparent);
+    border-top-color: var(--brand-strong);
+    border-radius: 999px;
+    animation:
+      spin 0.7s linear infinite,
+      locale-busy-spinner 0.2s ease-out 0.12s both;
+  }
+
+}
+
+.js [data-reveal] {
+  transition:
+    opacity 0.9s var(--ease-out),
+    transform 0.9s var(--ease-out);
+  transition-delay: var(--delay, 0ms);
+}
+
+.js [data-reveal]:not([data-shown]) {
+  opacity: 0;
+  transform: translate3d(0, 34px, 0);
+}
+
+.js [data-reveal="fade"]:not([data-shown]) {
+  transform: none;
+}
+
+.js [data-reveal="scale"]:not([data-shown]) {
+  transform: scale(0.94);
+}
+
+[dir="rtl"] {
+  --dir: -1;
+}
+
+/* Screens in a cycler restart their entrance animations each time they become active. */
+.screen-layer:not([data-active]) .replay,
+.screen-layer:not([data-active]) .replay * {
+  animation: none !important;
+}
+
+.js [data-live]:not([data-inview]) *,
+.js [data-live]:not([data-inview])::before,
+.js [data-live]:not([data-inview])::after {
+  animation-play-state: paused !important;
+}
+
+/* Set by MotionRuntime when the page is swapped in place: entrances already on screen are over. */
+[data-settled] {
+  animation-delay: -60s !important;
+}
+
+::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Page swaps run by React (a locale switch remounts the whole document): the old page steps out
+   quickly and the new one settles in right behind it. The theme toggle's own transition is typed
+   and keeps its circular reveal. Not keyed on a "locale" type: React hands queued types to the
+   first transition that commits, which is not always the navigation. */
+html:not(:active-view-transition-type(theme))::view-transition-old(root) {
+  animation: page-out 0.16s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+html:not(:active-view-transition-type(theme))::view-transition-new(root) {
+  animation: page-in 0.34s var(--ease-out) 0.07s both;
+}
+
+html:active-view-transition-type(locale)::view-transition-old(root) {
+  animation: locale-leave 0.42s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+html:active-view-transition-type(locale)::view-transition-new(root) {
+  animation: locale-enter 0.56s var(--ease-out) 0.05s both;
+}
+
+@keyframes route-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes page-out {
+  to {
+    opacity: 0;
+    filter: blur(3px);
+  }
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    filter: blur(3px);
+  }
+}
+
+@keyframes locale-leave {
+  to {
+    opacity: 0;
+    transform: translate3d(calc(28px * var(--dir)), 0, 0) scale(0.985);
+  }
+}
+
+@keyframes locale-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(calc(-28px * var(--dir)), 0, 0) scale(1.015);
+  }
+}
+
+@keyframes locale-busy-label {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes locale-busy-spinner {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes indeterminate {
+  from {
+    translate: calc(-110% * var(--dir)) 0;
+  }
+  to {
+    translate: calc(270% * var(--dir)) 0;
+  }
+}
+
+@keyframes status-step {
+  0%,
+  23% {
+    background-color: var(--brand);
+    color: var(--ink);
+  }
+  25%,
+  100% {
+    background-color: transparent;
+    color: var(--muted);
+  }
+}
+
+@keyframes drive-across {
+  from {
+    translate: calc(-110% * var(--dir)) 0;
+  }
+  to {
+    translate: calc((100cqw + 10%) * var(--dir)) 0;
+  }
+}
+
+@keyframes ripple {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.32);
+  }
+}
+
+@keyframes ring {
+  0%,
+  60%,
+  100% {
+    transform: rotate(0);
+  }
+  10%,
+  30%,
+  50% {
+    transform: rotate(14deg);
+  }
+  20%,
+  40% {
+    transform: rotate(-14deg);
+  }
+}
+
+@keyframes typing {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+@keyframes progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes stamp-press {
+  0% {
+    opacity: 0;
+    transform: scale(1.9) rotate(calc(var(--rot, 0deg) - 14deg));
+  }
+  55% {
+    opacity: 1;
+    transform: scale(0.92) rotate(var(--rot, 0deg));
+  }
+  75% {
+    transform: scale(1.04) rotate(var(--rot, 0deg));
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(var(--rot, 0deg));
+  }
+}
+
+@keyframes offer-cycle {
+  0%,
+  6% {
+    opacity: 0;
+    transform: translate3d(0, 110%, 0);
+  }
+  14%,
+  82% {
+    opacity: 1;
+    transform: none;
+  }
+  92%,
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 110%, 0);
+  }
+}
+
+@keyframes offer-ring {
+  0%,
+  14% {
+    stroke-dashoffset: 0;
+  }
+  82%,
+  100% {
+    stroke-dashoffset: 1;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.desk-invalid {
+  border-color: var(--danger) !important;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 18%, transparent) !important;
+}
+
+/*
+ * IBM Plex Sans Arabic (desk) paints bold Latin digits outside a tight em-box.
+ * leading-none / overflow-hidden on KPI cards shaves the top of 8, 0, 6, etc.
+ */
+/* Isolate E.164 phones (+963…) so RTL does not flip the leading +. */
+html[data-app="desk"] .phone-ltr,
+html[data-app="desk"] [data-phone] {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+html[data-app="desk"] input[name="phone"],
+html[data-app="desk"] input[name="mobile_number"],
+html[data-app="desk"] input[name*="phone"],
+html[data-app="desk"] input[inputmode="tel"],
+html[data-app="desk"] textarea[name="phone"],
+html[data-app="desk"] textarea[name="mobile_number"] {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: start;
+}
+
+html[data-app="desk"] .desk-ltr-num {
+  display: block;
+  width: 100%;
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: center;
+}
+
+/* Outer book frame — adapts to light/dark theme. */
+.passport-book-frame {
+  background: linear-gradient(145deg, #24666b, #123a3e 55%, #0c282b);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.08) inset,
+    0 18px 40px rgb(13 16 23 / 0.28);
+}
+
+[data-theme="dark"] .passport-book-frame {
+  background: linear-gradient(145deg, #1a4f53, #0d2a2d 55%, #08191b);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.04) inset,
+    0 22px 48px rgb(0 0 0 / 0.45);
+}
+
+/* StPageFlip passport booklet (same engine as Codarise AutoService24 gallery). */
+.passport-stf,
+.passport-stf .stf__parent,
+.passport-stf .stf__wrapper,
+.passport-stf .stf__block,
+.passport-stf-book {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Desktop-only leftover; touch devices no longer mount StPageFlip / --fixed. */
+@media (hover: hover) and (pointer: fine) {
+  .passport-stf--fixed,
+  .passport-stf--fixed .stf__parent {
+    touch-action: pan-y;
+  }
+}
+
+/* Stretch mode (desktop spread) fills the frame; contain so stf layers cannot overlay other sections. */
+.passport-stf--stretch {
+  contain: layout paint;
+  overflow: hidden;
+}
+
+.passport-stf--stretch .stf__parent,
+.passport-stf--stretch .stf__wrapper,
+.passport-stf--stretch .stf__block,
+.passport-stf--stretch .passport-stf-book {
+  width: 100% !important;
+}
+
+/* Fixed mode (mobile portrait) keeps Codarise-like intrinsic width. */
+.passport-stf--fixed {
+  display: flex;
+  justify-content: center;
+  /* Reserve height with dvh-friendly aspect so skeleton→book does not shift. */
+  min-height: min(72dvh, 34rem);
+}
+
+.passport-stf--fixed .stf__parent,
+.passport-stf--fixed .passport-stf-book {
+  width: auto !important;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.passport-stf .stf__item {
+  overflow: hidden;
+  background: var(--paper);
+  cursor: grab;
+}
+
+.passport-stf .stf__item:active {
+  cursor: grabbing;
+}
+
+.passport-stf-page {
+  box-sizing: border-box;
+  height: 100%;
+}
+
+.passport-stamp-hit {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.passport-stf .stf__wrapper.--portrait {
+  margin-inline: auto;
+}
+
+html[data-app="desk"] .desk-kpi-value {
+  display: block;
+  overflow: visible;
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  padding-block: 0.12em;
+}
+
+html[data-app="desk"] .desk-kpi-unit {
+  margin-inline-start: 0.35em;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: inherit;
+  white-space: nowrap;
+}
+
+/* A4 receipts (store balance, POS top-up): fixed print palette, independent of the desk theme. */
+.print-doc {
+  display: none;
+}
+
+@page store-receipt {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+  html:has(.print-doc),
+  body:has(.print-doc) {
+    background: #fff !important;
+  }
+
+  body:has(.print-doc) > *:not(.print-doc) {
+    display: none !important;
+  }
+
+  .print-doc {
+    page: store-receipt;
+    display: flex;
+    flex-direction: column;
+    gap: 7mm;
+    box-sizing: border-box;
+    width: 210mm;
+    min-height: 297mm;
+    padding: 16mm 17mm 14mm;
+    background: #fff;
+    color: #10201f;
+    font-size: 10.5pt;
+    line-height: 1.55;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .print-doc h1,
+  .print-doc h2,
+  .print-doc p,
+  .print-doc dl,
+  .print-doc dd {
+    margin: 0;
+  }
+
+  .print-doc .pd-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 10mm;
+  }
+
+  .print-doc .pd-brand {
+    display: grid;
+    gap: 2mm;
+    color: #0b2a2c;
+  }
+
+  .print-doc .pd-logo {
+    height: 13mm;
+  }
+
+  .print-doc .pd-tagline,
+  .print-doc .pd-subtitle {
+    color: #5d7173;
+    font-size: 9pt;
+    letter-spacing: 0.02em;
+  }
+
+  .print-doc .pd-title {
+    text-align: end;
+  }
+
+  .print-doc .pd-title h1 {
+    color: #0b2a2c;
+    font-size: 19pt;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  .print-doc .pd-band {
+    height: 2.2mm;
+    border-radius: 2mm;
+    background: linear-gradient(90deg, #0f5257, #00a3aa 55%, #00e5ea);
+  }
+
+  .print-doc .pd-meta {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr 1fr;
+    border: 0.3mm solid #d5e1e2;
+    border-radius: 3mm;
+    overflow: hidden;
+  }
+
+  .print-doc .pd-meta > div {
+    display: grid;
+    gap: 1mm;
+    padding: 3.5mm 4.5mm;
+  }
+
+  .print-doc .pd-meta > div + div {
+    border-inline-start: 0.3mm solid #d5e1e2;
+  }
+
+  .print-doc .pd-meta span,
+  .print-doc .pd-grid dt,
+  .print-doc .pd-amount span,
+  .print-doc .pd-signs p {
+    color: #5d7173;
+    font-size: 8.5pt;
+  }
+
+  .print-doc .pd-ref {
+    color: #0f5257;
+    font-size: 14pt;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+
+  .print-doc .pd-section {
+    display: grid;
+    gap: 3mm;
+  }
+
+  .print-doc .pd-section h2 {
+    padding-bottom: 1.5mm;
+    border-bottom: 0.3mm solid #d5e1e2;
+    color: #0f5257;
+    font-size: 11pt;
+    font-weight: 700;
+  }
+
+  .print-doc .pd-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3.5mm 6mm;
+  }
+
+  .print-doc .pd-grid div {
+    display: grid;
+    gap: 0.5mm;
+  }
+
+  .print-doc .pd-grid dd {
+    font-weight: 600;
+  }
+
+  .print-doc .pd-grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .print-doc .pd-duo {
+    display: grid;
+    grid-template-columns: 1fr 1.6fr;
+    align-items: start;
+    gap: 8mm;
+  }
+
+  .print-doc .pd-good {
+    color: #17794a;
+  }
+
+  .print-doc .pd-bad {
+    color: #b42318;
+  }
+
+  .print-doc .pd-amount {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5mm 6mm;
+    border: 0.4mm solid #9fd3d6;
+    border-radius: 3mm;
+    background: #eef8f8;
+  }
+
+  .print-doc .pd-amount span {
+    color: #0f5257;
+    font-size: 11pt;
+    font-weight: 600;
+  }
+
+  .print-doc .pd-amount strong {
+    color: #0b2a2c;
+    font-size: 22pt;
+    font-weight: 700;
+  }
+
+  .print-doc .pd-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .print-doc .pd-table th,
+  .print-doc .pd-table td {
+    padding: 2.6mm 3mm;
+    border-bottom: 0.3mm dashed #d5e1e2;
+  }
+
+  .print-doc .pd-table th {
+    color: #3c5052;
+    font-weight: 500;
+    text-align: start;
+  }
+
+  .print-doc .pd-table td {
+    font-weight: 600;
+    text-align: end;
+  }
+
+  .print-doc .pd-table .pd-total th,
+  .print-doc .pd-table .pd-total td {
+    border-bottom: 0;
+    background: #f4f8f8;
+    color: #0b2a2c;
+    font-weight: 700;
+  }
+
+  .print-doc .pd-note {
+    padding: 3mm 4mm;
+    border-radius: 2mm;
+    background: #f6f8f8;
+    color: #3c5052;
+  }
+
+  .print-doc .pd-note span {
+    font-weight: 600;
+  }
+
+  .print-doc .pd-signs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: end;
+    gap: 20mm;
+    margin-top: auto;
+    padding-top: 6mm;
+  }
+
+  .print-doc .pd-signs > div {
+    display: grid;
+    gap: 1mm;
+  }
+
+  .print-doc .pd-line {
+    display: block;
+    height: 12mm;
+    border-bottom: 0.3mm solid #10201f;
+  }
+
+  .print-doc .pd-foot {
+    display: grid;
+    gap: 1mm;
+    padding-top: 3.5mm;
+    border-top: 0.3mm solid #d5e1e2;
+    color: #6f8183;
+    font-size: 8pt;
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+
+  .offer-card,
+  .offer-ring,
+  .status-step,
+  .sheen-overlay::after {
+    animation: none !important;
+  }
+
+  .status-step[data-current] {
+    background-color: var(--brand);
+    color: var(--ink);
+  }
+
+  .drive-across {
+    animation: none !important;
+    inset-inline-start: 8%;
+  }
+
+  html:not(:active-view-transition-type(theme))::view-transition-old(root),
+  html:not(:active-view-transition-type(theme))::view-transition-new(root),
+  html:active-view-transition-type(locale)::view-transition-old(root),
+  html:active-view-transition-type(locale)::view-transition-new(root) {
+    animation: none;
+  }
+}

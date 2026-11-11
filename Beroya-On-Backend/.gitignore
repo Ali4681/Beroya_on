@@ -1,0 +1,12 @@
+node_modules/
+dist/
+src/generated/
+coverage/
+.env
+.env.test
+*.log
+logs/
+tmp/
+storage/
+*.tsbuildinfo
+*.rdb

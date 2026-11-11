@@ -1,0 +1,70 @@
+/* Keyframes keep translate(-50%, -50%) so the wheel stays centered while spinning.
+   Named neon-car-spin to avoid clobbering the global `spin` used by SVG cars. */
+@keyframes neon-car-spin {
+  to {
+    transform: translate(-50%, -50%) rotate(-360deg);
+  }
+}
+
+.neon-car.car {
+  position: relative;
+  width: 100%;
+  max-width: 1000px;
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.neon-car.car:hover {
+  transform: translateX(12px);
+}
+
+/* VIP stage flips the car in RTL; invert so motion still reads as right on screen. */
+[dir="rtl"] .neon-car.car:hover {
+  transform: translateX(-12px);
+}
+
+.neon-car.car > img:first-of-type {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.neon-car .wheel {
+  position: absolute;
+  display: block;
+  width: 13.444%;
+  height: auto;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  user-select: none;
+  animation: neon-car-spin 1s linear infinite;
+  animation-play-state: paused;
+}
+
+.neon-car .wheel-front {
+  left: 15.562%;
+  top: 73.619%;
+}
+
+.neon-car .wheel-rear {
+  left: 76.796%;
+  top: 73.619%;
+}
+
+.neon-car.car:hover .wheel {
+  animation-play-state: running;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neon-car.car {
+    transition: none;
+  }
+
+  .neon-car.car:hover {
+    transform: none;
+  }
+
+  .neon-car .wheel {
+    animation: none;
+  }
+}
